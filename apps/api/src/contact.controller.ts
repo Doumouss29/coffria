@@ -1,6 +1,6 @@
 import { BadGatewayException, Body, Controller, Post } from '@nestjs/common';
 import { IsEmail, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
-import nodemailer from 'nodemailer';
+import * as nodemailer from 'nodemailer';
 
 class ContactDto {
   @IsString() @MinLength(2) @MaxLength(120) name!: string;
