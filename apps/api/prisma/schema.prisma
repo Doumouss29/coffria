@@ -1,0 +1,201 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PlatformRole {
+  SUPER_ADMIN
+  TENANT_ADMIN
+  EDITOR
+  VIEWER
+}
+
+enum UserStatus {
+  ACTIVE
+  INVITED
+  SUSPENDED
+}
+
+enum FolderVisibility {
+  COMPANY
+  PRIVATE
+  RESTRICTED
+}
+
+enum DocumentStatus {
+  PENDING_UPLOAD
+  ACTIVE
+  QUARANTINED
+  TRASHED
+}
+
+model Tenant {
+  id                String   @id @default(uuid())
+  name              String
+  slug              String   @unique
+  storageQuotaBytes BigInt   @default(107374182400)
+  maxUsers          Int      @default(10)
+  maxFileSizeBytes  BigInt   @default(5368709120)
+  active            Boolean  @default(true)
+  subscriptionExpiresAt DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  users       User[]
+  folders     Folder[]
+  documents   Document[]
+  invitations Invitation[]
+  auditLogs   AuditLog[]
+  groups      Group[]
+}
+
+model User {
+  id           String       @id @default(uuid())
+  tenantId     String?
+  tenant       Tenant?      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name         String
+  email        String       @unique
+  passwordHash String
+  role         PlatformRole
+  status       UserStatus   @default(ACTIVE)
+  mfaEnabled   Boolean      @default(false)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  foldersCreated Folder[]     @relation("FolderCreator")
+  docsCreated    Document[]   @relation("DocumentCreator")
+  invitations    Invitation[] @relation("InvitationCreator")
+  auditLogs      AuditLog[]
+  groupMemberships GroupMember[]
+  folderAccesses FolderUserAccess[]
+}
+
+model Folder {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  parentId    String?
+  parent      Folder?  @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children    Folder[] @relation("FolderTree")
+  name        String
+  createdById String
+  createdBy   User     @relation("FolderCreator", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+  visibility  FolderVisibility @default(COMPANY)
+
+  documents Document[]
+  userAccesses FolderUserAccess[]
+  groupAccesses FolderGroupAccess[]
+
+  @@index([tenantId, parentId, deletedAt])
+  @@unique([tenantId, parentId, name])
+}
+
+model Group {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members        GroupMember[]
+  folderAccesses FolderGroupAccess[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
+model GroupMember {
+  groupId String
+  group   Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId  String
+  user    User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([groupId, userId])
+  @@index([userId])
+}
+
+model FolderUserAccess {
+  folderId String
+  folder   Folder @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([folderId, userId])
+  @@index([userId])
+}
+
+model FolderGroupAccess {
+  folderId String
+  folder   Folder @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  groupId  String
+  group    Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([folderId, groupId])
+  @@index([groupId])
+}
+
+model Document {
+  id              String         @id @default(uuid())
+  tenantId        String
+  tenant          Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  folderId        String
+  folder          Folder         @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  technicalNumber String         @unique
+  name            String
+  extension       String?
+  mimeType        String
+  sizeBytes       BigInt
+  storageKey      String         @unique
+  checksumSha256  String?
+  version         Int            @default(1)
+  status          DocumentStatus @default(PENDING_UPLOAD)
+  metadata        Json           @default("{}")
+  extractedText   String?
+  createdById     String
+  createdBy       User           @relation("DocumentCreator", fields: [createdById], references: [id])
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  deletedAt       DateTime?
+
+  @@index([tenantId, folderId, status, deletedAt])
+  @@index([tenantId, name])
+}
+
+model Invitation {
+  id          String       @id @default(uuid())
+  tenantId    String
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  email       String
+  role        PlatformRole
+  tokenHash   String       @unique
+  expiresAt   DateTime
+  usedAt      DateTime?
+  createdById String
+  createdBy   User         @relation("InvitationCreator", fields: [createdById], references: [id])
+  createdAt   DateTime     @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  tenantId   String?
+  tenant     Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action     String
+  entityType String
+  entityId   String?
+  ipAddress  String?
+  userAgent  String?
+  details    Json     @default("{}")
+  createdAt  DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+}
