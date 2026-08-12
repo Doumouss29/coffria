@@ -13,7 +13,7 @@ const fallbackOffers = [
     title: 'Offre de lancement Coffria',
     subtitle: 'Lancement',
     description: 'Démarrez votre archivage documentaire dans de bonnes conditions avec un accompagnement personnalisé.',
-    ctaLabel: 'Profiter de l’offre',
+    ctaLabel: 'Découvrir l’offre',
     ctaUrl: '/contact',
     startAt: null,
     endAt: null,
@@ -62,7 +62,6 @@ export default function OffersPage() {
         <div className="publicContainer">
           <div className="sectionHead">
             <div><span className="eyebrow">À saisir maintenant</span><h2>Choisissez l’offre adaptée à votre projet</h2></div>
-            <p>Les offres actives sont gérées directement depuis l’espace Super Admin Coffria.</p>
           </div>
 
           <div className="offersGrid">
@@ -80,7 +79,7 @@ export default function OffersPage() {
                   {(start || end) && <div className="offerDates"><CalendarDays size={17}/><span>{start ? `Du ${start}` : 'Disponible maintenant'}{end ? ` au ${end}` : ''}</span></div>}
                   {!end && <div className="offerDates"><TimerReset size={17}/><span>Offre disponible actuellement</span></div>}
                   <div className="offerCardAction">
-                    <Link href={offer.ctaUrl || '/contact'}>{offer.ctaLabel || "Découvrir l'offre"} →</Link>
+                    <Link href={`/offres/${offer.id}`}>{offer.ctaLabel || "Découvrir l'offre"} →</Link>
                   </div>
                 </article>
               );
