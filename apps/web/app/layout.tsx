@@ -1,1 +1,15 @@
-import './globals.css';export const metadata={title:'Coffria',description:'Archivage documentaire intelligent'};export default function RootLayout({children}:{children:React.ReactNode}){return <html lang="fr"><body>{children}</body></html>}
+import './globals.css';
+import './marketing.css';
+
+export const metadata = {
+  title: 'Coffria',
+  description: 'Archivage documentaire intelligent et sécurisé',
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="fr">
+      <body>{children}</body>
+    </html>
+  );
+}
