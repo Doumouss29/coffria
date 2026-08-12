@@ -1,0 +1,141 @@
+'use client';
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AlertCircle, CheckCircle2, Download, Eye, FileText, Folder, FolderPlus, Home, MoreVertical, Pencil, Search, Share2, Trash2, Upload, X } from 'lucide-react';
+import { api } from '../../lib/api';
+import { AppShell } from '../../components/AppShell';
+
+type Item = { id:string; name:string; mimeType?:string; extension?:string; sizeBytes?:string|number; updatedAt:string; createdBy?:{name:string}; visibility?:string; createdById?:string };
+type UploadTask = { id:string; name:string; progress:number; status:'preparing'|'uploading'|'finalizing'|'done'|'error'; error?:string; speedMbps?:number; etaSeconds?:number };
+type MultipartPart = { partNumber:number; etag:string };
+
+function size(value:any){let n=Number(value||0);for(const unit of ['o','Ko','Mo','Go','To']){if(n<1024)return `${n.toFixed(n<10&&unit!=='o'?1:0)} ${unit}`;n/=1024;}return `${n.toFixed(1)} Po`;}
+function statusLabel(s:UploadTask['status']){return s==='preparing'?'Préparation…':s==='uploading'?'Téléversement rapide…':s==='finalizing'?'Finalisation…':s==='done'?'Import terminé':'Échec';}
+
+export default function Explorer(){
+  const [data,setData]=useState<any>({folders:[],documents:[],breadcrumbs:[],quota:{usedBytes:'0',pendingBytes:'0',limitBytes:'1'}});
+  const [folderId,setFolderId]=useState<string|null>(null); const [q,setQ]=useState(''); const [results,setResults]=useState<any>(null);
+  const [sort,setSort]=useState('name'); const [direction,setDirection]=useState('asc'); const [error,setError]=useState(''); const [notice,setNotice]=useState('');
+  const [showFolderModal,setShowFolderModal]=useState(false); const [newFolderName,setNewFolderName]=useState(''); const [visibility,setVisibility]=useState<'COMPANY'|'PRIVATE'|'RESTRICTED'>('COMPANY');
+  const [options,setOptions]=useState<any>({users:[],groups:[]}); const [selectedUsers,setSelectedUsers]=useState<string[]>([]); const [selectedGroups,setSelectedGroups]=useState<string[]>([]);
+  const [uploads,setUploads]=useState<UploadTask[]>([]); const fileInput=useRef<HTMLInputElement>(null);
+  const [actionMenu,setActionMenu]=useState<{item:Item;doc:boolean;top:number;left:number}|null>(null); const [renameItem,setRenameItem]=useState<Item|null>(null); const [renameValue,setRenameValue]=useState('');
+  const [shareFolder,setShareFolder]=useState<Item|null>(null); const [shareVisibility,setShareVisibility]=useState<'COMPANY'|'PRIVATE'|'RESTRICTED'>('COMPANY'); const [shareUsers,setShareUsers]=useState<string[]>([]); const [shareGroups,setShareGroups]=useState<string[]>([]); const [shareLoading,setShareLoading]=useState(false);
+  const busy=uploads.some(u=>!['done','error'].includes(u.status));
+
+  const load=useCallback(async()=>{setError('');const p=new URLSearchParams({sort,direction});if(folderId)p.set('folderId',folderId);setData(await api(`/explorer?${p}`));},[folderId,sort,direction]);
+  useEffect(()=>{load().catch(e=>setError(e.message));},[load]);
+  useEffect(()=>{
+    const close=()=>setActionMenu(null);
+    document.addEventListener('pointerdown',close);
+    window.addEventListener('resize',close);
+    window.addEventListener('scroll',close,true);
+    return()=>{document.removeEventListener('pointerdown',close);window.removeEventListener('resize',close);window.removeEventListener('scroll',close,true)};
+  },[]);
+
+  async function search(){if(!q.trim()){setResults(null);return;}try{setResults(await api(`/search?q=${encodeURIComponent(q)}`));}catch(e:any){setError(e.message)}}
+  async function openFolderModal(){try{setOptions(await api('/groups/options'));}catch{setOptions({users:[],groups:[]});}setShowFolderModal(true);}
+  async function createFolder(e:React.FormEvent){e.preventDefault();try{await api('/explorer/folders',{method:'POST',body:JSON.stringify({name:newFolderName,parentId:folderId,visibility,userIds:selectedUsers,groupIds:selectedGroups})});setShowFolderModal(false);setNewFolderName('');setVisibility('COMPANY');setSelectedUsers([]);setSelectedGroups([]);setNotice('Dossier créé avec succès.');await load();}catch(e:any){setError(e.message)}}
+
+  function putBlob(url:string,blob:Blob,onProgress:(loaded:number)=>void,headers:Record<string,string>={}){return new Promise<string>((resolve,reject)=>{const xhr=new XMLHttpRequest();xhr.open('PUT',url);Object.entries(headers).forEach(([k,v])=>xhr.setRequestHeader(k,v));xhr.upload.onprogress=e=>onProgress(e.loaded);xhr.onload=()=>{if(xhr.status>=200&&xhr.status<300){const etag=xhr.getResponseHeader('ETag');resolve(etag||'')}else reject(new Error(`Échec de l’envoi (${xhr.status})`))};xhr.onerror=()=>reject(new Error('Erreur réseau pendant l’envoi'));xhr.send(blob);});}
+  function patchTask(id:string,patch:Partial<UploadTask>){setUploads(list=>list.map(t=>t.id===id?{...t,...patch}:t));}
+
+  async function multipartUpload(prepared:any,file:File,id:string){
+    const partSize=prepared.partSize as number;
+    const partCount=prepared.partCount as number;
+    const partUrls:string[]=prepared.partUrls||[];
+    const completed:MultipartPart[]=[];
+    const loaded=new Array(partCount).fill(0);
+    const startedAt=performance.now();
+    let next=0;
+    let lastUiUpdate=0;
+    const update=()=>{
+      const now=performance.now();
+      if(now-lastUiUpdate<180)return;
+      lastUiUpdate=now;
+      const total=loaded.reduce((a,b)=>a+b,0);
+      const elapsed=Math.max(0.1,(now-startedAt)/1000);
+      const bytesPerSecond=total/elapsed;
+      const speedMbps=bytesPerSecond*8/1_000_000;
+      const etaSeconds=bytesPerSecond>0?(file.size-total)/bytesPerSecond:undefined;
+      patchTask(id,{status:'uploading',progress:Math.min(95,5+Math.round(total/file.size*90)),speedMbps,etaSeconds});
+    };
+    async function worker(){
+      while(true){
+        const index=next++;
+        if(index>=partCount)return;
+        const partNumber=index+1;
+        const start=index*partSize;
+        const end=Math.min(file.size,start+partSize);
+        const blob=file.slice(start,end);
+        const url=partUrls[index]||((await api('/explorer/uploads/part-url',{method:'POST',body:JSON.stringify({documentId:prepared.documentId,partNumber})})).url);
+        let etag='';
+        for(let attempt=1;attempt<=3;attempt++){
+          try{etag=await putBlob(url,blob,n=>{loaded[index]=n;update()});break;}
+          catch(e){loaded[index]=0;update();if(attempt===3)throw e;await new Promise(r=>setTimeout(r,attempt*1000));}
+        }
+        if(!etag)throw new Error(`ETag manquant pour la partie ${partNumber}`);
+        completed.push({partNumber,etag});
+      }
+    }
+    const requested=Number(prepared.recommendedConcurrency||6);
+    const parallel=Math.min(Math.max(3,requested),8,partCount);
+    await Promise.all(Array.from({length:parallel},()=>worker()));
+    return completed;
+  }
+
+  async function uploadOne(file:File,index:number){
+    const id=`${Date.now()}-${index}-${file.name}`;let documentId:string|undefined;setUploads(list=>[...list,{id,name:file.name,progress:2,status:'preparing'}]);
+    try{
+      const prepared=await api('/explorer/uploads/prepare',{method:'POST',body:JSON.stringify({folderId,name:file.name,mimeType:file.type||'application/octet-stream',sizeBytes:file.size})});documentId=prepared.documentId;patchTask(id,{status:'uploading',progress:5});let parts:MultipartPart[]|undefined;
+      if(prepared.mode==='multipart')parts=await multipartUpload(prepared,file,id);else await putBlob(prepared.uploadUrl,file,n=>patchTask(id,{status:'uploading',progress:Math.min(95,5+Math.round(n/file.size*90))}),{'Content-Type':file.type||'application/octet-stream','x-amz-server-side-encryption':'AES256'});
+      patchTask(id,{status:'finalizing',progress:97});await api('/explorer/uploads/complete',{method:'POST',body:JSON.stringify({documentId,parts})});patchTask(id,{status:'done',progress:100});return true;
+    }catch(e:any){if(documentId)await api(`/explorer/uploads/${documentId}`,{method:'DELETE'}).catch(()=>undefined);patchTask(id,{status:'error',error:e.message,progress:100});return false;}
+  }
+
+  async function uploadFiles(files:FileList){if(!folderId){setError('Ouvrez ou créez un dossier avant d’importer des documents.');return;}setUploads([]);setNotice('');const list=Array.from(files);let ok=0;for(let i=0;i<list.length;i+=3){const batch=list.slice(i,i+3);const r=await Promise.all(batch.map((f,j)=>uploadOne(f,i+j)));ok+=r.filter(Boolean).length;}await load();if(ok===list.length)setNotice(`${ok} fichier${ok>1?'s':''} importé${ok>1?'s':''} avec succès.`);else if(ok>0)setNotice(`${ok} fichier${ok>1?'s':''} importé${ok>1?'s':''}. Certains imports ont échoué.`);if(fileInput.current)fileInput.current.value='';}
+
+  async function openDocument(item:Item){const popup=window.open('about:blank','_blank');try{const r=await api(`/explorer/documents/${item.id}/url?mode=preview`);if(popup){popup.opener=null;popup.location.href=r.url}else window.location.href=r.url;}catch(e:any){popup?.close();setError(e.message)}}
+  async function downloadDocument(item:Item){const popup=window.open('about:blank','_blank');try{const r=await api(`/explorer/documents/${item.id}/url?mode=download`);if(popup){popup.opener=null;popup.location.href=r.url}else window.location.href=r.url;}catch(e:any){popup?.close();setError(e.message)}}
+  async function trashItem(item:Item,doc:boolean){if(!confirm(`Mettre « ${item.name} » dans la corbeille ?`))return;try{await api(`/explorer/${doc?'documents':'folders'}/${item.id}`,{method:'DELETE'});setNotice('Élément déplacé dans la corbeille.');await load();}catch(e:any){setError(e.message)}}
+  function startRename(item:Item){setRenameItem(item);setRenameValue(item.name);setActionMenu(null)}
+  async function openShare(item:Item){
+    setActionMenu(null);setShareLoading(true);setError('');
+    try{
+      const [available,current]=await Promise.all([api('/groups/options'),api(`/explorer/folders/${item.id}/access`)]);
+      setOptions(available);setShareFolder(item);setShareVisibility(current.visibility);setShareUsers(current.userIds||[]);setShareGroups(current.groupIds||[]);
+    }catch(e:any){setError(e.message)}finally{setShareLoading(false)}
+  }
+  async function submitShare(e:React.FormEvent){
+    e.preventDefault();if(!shareFolder)return;setShareLoading(true);setError('');
+    try{
+      await api(`/explorer/folders/${shareFolder.id}/access`,{method:'PATCH',body:JSON.stringify({visibility:shareVisibility,userIds:shareUsers,groupIds:shareGroups})});
+      setShareFolder(null);setNotice('Niveau de partage modifié avec succès.');await load();
+    }catch(e:any){setError(e.message)}finally{setShareLoading(false)}
+  }
+  async function submitRename(e:React.FormEvent){e.preventDefault();if(!renameItem)return;const doc=Boolean(renameItem.mimeType);try{await api(`/explorer/${doc?'documents':'folders'}/${renameItem.id}`,{method:'PATCH',body:JSON.stringify({name:renameValue})});setRenameItem(null);setNotice('Nom modifié avec succès.');await load();}catch(e:any){setError(e.message)}}
+
+  const rows=useMemo(()=>results?results.documents:[...data.folders,...data.documents],[results,data]); const used=Number(data.quota.usedBytes||0); const pending=Number(data.quota.pendingBytes||0); const limit=Number(data.quota.limitBytes||1); const pct=Math.min(100,(used+pending)/Math.max(1,limit)*100);
+  return <AppShell title="Explorateur documentaire"><section className="content">
+    <div className="pageTitle"><div><h1>Mes dossiers</h1><p className="muted">Classez, recherchez et sécurisez vos documents métier.</p></div></div>
+    <div className="breadcrumbs"><button className="crumb" onClick={()=>{setFolderId(null);setResults(null)}}><Home size={15}/>Racine</button>{(data.breadcrumbs||[]).map((c:any)=><button className="crumb" key={c.id} onClick={()=>{setFolderId(c.id);setResults(null)}}>{c.name}</button>)}</div>
+    <div className="toolbar"><input className="search" value={q} onChange={e=>setQ(e.target.value)} onKeyDown={e=>e.key==='Enter'&&search()} placeholder="Rechercher comme vous parlez : PDF contenant bornage…"/><button className="primary" onClick={search}><Search size={16}/>Rechercher</button><button className="primary" disabled={busy||!folderId} onClick={()=>fileInput.current?.click()}><Upload size={16}/>Importer</button><button className="secondary" disabled={busy} onClick={openFolderModal}><FolderPlus size={16}/>Nouveau dossier</button><input ref={fileInput} hidden multiple type="file" onChange={e=>e.target.files?.length&&uploadFiles(e.target.files)}/></div>
+    {error&&<div className="alert error">{error}<button onClick={()=>setError('')}><X size={16}/></button></div>}
+    {notice&&<div className="alert success"><span><CheckCircle2 size={17}/> {notice}</span><button onClick={()=>setNotice('')}><X size={16}/></button></div>}
+    {uploads.length>0&&<div className="uploadPanel"><div className="uploadPanelHead"><strong>Import accéléré de {uploads.length} fichier{uploads.length>1?'s':''}</strong>{!busy&&<button onClick={()=>setUploads([])}><X size={16}/></button>}</div>{uploads.map(t=><div className={`uploadItem ${t.status}`} key={t.id}><div className="uploadMeta"><span>{t.status==='done'?<CheckCircle2 size={18}/>:t.status==='error'?<AlertCircle size={18}/>:<Upload size={18}/>}<b>{t.name}</b></span><span>{statusLabel(t.status)} · {t.progress}%</span></div><div className="uploadTrack"><i style={{width:`${t.progress}%`}}/></div>{t.error&&<small>{t.error}</small>}</div>)}</div>}
+    {results&&<div className="chips"><span className="chip">Résultats de recherche</span><button className="chipButton" onClick={()=>setResults(null)}>Effacer</button></div>}
+    <div className="storageLine"><span>Documents : {size(used)} · Imports en cours : {size(pending)} · Disponible : {size(Math.max(0,limit-used-pending))}</span><span>{pct.toFixed(1)} %</span></div><div className="quota"><i style={{width:`${pct}%`}}/></div>
+    <div className="card tableCard"><table className="table"><thead><tr>{[['name','Nom'],['mimeType','Type'],['sizeBytes','Taille'],['updatedAt','Modifié le'],['createdBy','Modifié par']].map(([k,l])=><th key={k} onClick={()=>{if(sort===k)setDirection(direction==='asc'?'desc':'asc');else{setSort(k);setDirection('asc')}}}>{l}{sort===k?(direction==='asc'?' ↑':' ↓'):''}</th>)}<th>Actions</th></tr></thead><tbody>{!rows.length&&<tr><td colSpan={6} className="empty">Aucun élément dans ce dossier.</td></tr>}{rows.map((item:Item)=>{const doc=Boolean(item.mimeType);return <tr key={item.id} className="clickable" onDoubleClick={()=>doc?openDocument(item):(setFolderId(item.id),setResults(null))}><td><button className="nameButton" onClick={()=>doc?openDocument(item):(setFolderId(item.id),setResults(null))}>{doc?<FileText className="file" size={20}/>:<Folder className="folder" size={20}/>} {item.name}</button></td><td>{doc?(item.extension||item.mimeType?.split('/').pop()||'Fichier').toUpperCase():'Dossier'}</td><td>{doc?size(item.sizeBytes):'—'}</td><td>{new Date(item.updatedAt).toLocaleString('fr-FR')}</td><td>{item.createdBy?.name||'—'}</td><td className="actionCell"><button type="button" className="moreButton" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.preventDefault();e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();const menuWidth=220;const left=Math.max(12,Math.min(window.innerWidth-menuWidth-12,r.right-menuWidth));const estimatedHeight=doc?190:150;const top=r.bottom+8+estimatedHeight>window.innerHeight?Math.max(12,r.top-estimatedHeight-8):r.bottom+8;setActionMenu(current=>current?.item.id===item.id?null:{item,doc,top,left})}} aria-haspopup="menu" aria-expanded={actionMenu?.item.id===item.id} aria-label={`Actions pour ${item.name}`}><MoreVertical size={18}/></button></td></tr>})}</tbody></table></div>
+  </section>
+  {actionMenu&&<div className="actionDropdown actionDropdownPortal" role="menu" style={{top:actionMenu.top,left:actionMenu.left}} onPointerDown={e=>{e.preventDefault();e.stopPropagation()}} onClick={e=>e.stopPropagation()}>
+    {actionMenu.doc&&<><button type="button" role="menuitem" onPointerDown={e=>{e.preventDefault();e.stopPropagation();const item=actionMenu.item;setActionMenu(null);void openDocument(item)}}><Eye size={15}/>Prévisualiser</button><button type="button" role="menuitem" onPointerDown={e=>{e.preventDefault();e.stopPropagation();const item=actionMenu.item;setActionMenu(null);void downloadDocument(item)}}><Download size={15}/>Télécharger</button></>}
+    {!actionMenu.doc&&<><button type="button" role="menuitem" onPointerDown={e=>{e.preventDefault();e.stopPropagation();const item=actionMenu.item;setActionMenu(null);setFolderId(item.id);setResults(null)}}><Folder size={15}/>Ouvrir</button><button type="button" role="menuitem" onPointerDown={e=>{e.preventDefault();e.stopPropagation();const item=actionMenu.item;setActionMenu(null);void openShare(item)}}><Share2 size={15}/>Modifier le partage</button></>}
+    <button type="button" role="menuitem" onPointerDown={e=>{e.preventDefault();e.stopPropagation();const item=actionMenu.item;setActionMenu(null);startRename(item)}}><Pencil size={15}/>Renommer</button>
+    <button type="button" role="menuitem" className="dangerMenu" onPointerDown={e=>{e.preventDefault();e.stopPropagation();const {item,doc}=actionMenu;setActionMenu(null);void trashItem(item,doc)}}><Trash2 size={15}/>Mettre à la corbeille</button>
+  </div>}
+  {showFolderModal&&<div className="modalBackdrop"><form className="modal wide" onSubmit={createFolder}><h2>Nouveau dossier</h2><label className="field">Nom<input autoFocus value={newFolderName} onChange={e=>setNewFolderName(e.target.value)} required maxLength={120}/></label><label className="field">Visibilité<select value={visibility} onChange={e=>setVisibility(e.target.value as any)}><option value="COMPANY">Toute l’entreprise</option><option value="PRIVATE">Moi seul</option><option value="RESTRICTED">Personnes ou groupes spécifiques</option></select></label>{visibility==='RESTRICTED'&&<div className="accessGrid"><div><h3>Personnes</h3><div className="checkGrid">{options.users.map((u:any)=><label className="checkItem" key={u.id}><input type="checkbox" checked={selectedUsers.includes(u.id)} onChange={e=>setSelectedUsers(e.target.checked?[...selectedUsers,u.id]:selectedUsers.filter(id=>id!==u.id))}/><span>{u.name}<small>{u.email} · {u.role}</small></span></label>)}</div></div><div><h3>Groupes</h3><div className="checkGrid">{options.groups.map((g:any)=><label className="checkItem" key={g.id}><input type="checkbox" checked={selectedGroups.includes(g.id)} onChange={e=>setSelectedGroups(e.target.checked?[...selectedGroups,g.id]:selectedGroups.filter(id=>id!==g.id))}/><span>{g.name}<small>{g._count.members} membre(s)</small></span></label>)}</div></div></div>}<div className="modalActions"><button type="button" className="secondary" onClick={()=>setShowFolderModal(false)}>Annuler</button><button className="primary">Créer</button></div></form></div>}
+  {shareLoading&&!shareFolder&&<div className="modalBackdrop"><div className="modal"><h2>Chargement des accès…</h2><p className="muted">Veuillez patienter.</p></div></div>}
+  {shareFolder&&<div className="modalBackdrop"><form className="modal wide" onSubmit={submitShare}><h2>Partage du dossier « {shareFolder.name} »</h2><label className="field">Niveau de partage<select value={shareVisibility} onChange={e=>setShareVisibility(e.target.value as any)}><option value="COMPANY">Toute l’entreprise</option><option value="PRIVATE">Moi seul</option><option value="RESTRICTED">Personnes ou groupes spécifiques</option></select></label>{shareVisibility==='RESTRICTED'&&<div className="accessGrid"><div><h3>Personnes</h3><div className="checkGrid">{options.users.map((u:any)=><label className="checkItem" key={u.id}><input type="checkbox" checked={shareUsers.includes(u.id)} onChange={e=>setShareUsers(e.target.checked?[...shareUsers,u.id]:shareUsers.filter(id=>id!==u.id))}/><span>{u.name}<small>{u.email} · {u.role}</small></span></label>)}</div></div><div><h3>Groupes</h3><div className="checkGrid">{options.groups.map((g:any)=><label className="checkItem" key={g.id}><input type="checkbox" checked={shareGroups.includes(g.id)} onChange={e=>setShareGroups(e.target.checked?[...shareGroups,g.id]:shareGroups.filter(id=>id!==g.id))}/><span>{g.name}<small>{g._count.members} membre(s)</small></span></label>)}</div></div></div>}<div className="modalActions"><button type="button" className="secondary" disabled={shareLoading} onClick={()=>setShareFolder(null)}>Annuler</button><button className="primary" disabled={shareLoading}>{shareLoading?'Enregistrement…':'Enregistrer le partage'}</button></div></form></div>}
+  {renameItem&&<div className="modalBackdrop"><form className="modal" onSubmit={submitRename}><h2>Renommer</h2><label className="field">Nouveau nom<input autoFocus value={renameValue} onChange={e=>setRenameValue(e.target.value)} required maxLength={255}/></label><div className="modalActions"><button type="button" className="secondary" onClick={()=>setRenameItem(null)}>Annuler</button><button className="primary">Enregistrer</button></div></form></div>}
+  </AppShell>;
+}
