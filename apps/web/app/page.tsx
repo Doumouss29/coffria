@@ -12,8 +12,8 @@ const fallbackOffer = {
   title: 'Découvrez Coffria avec une démonstration personnalisée',
   subtitle: 'Offre du moment',
   description: 'Présentez-nous votre organisation et vos besoins documentaires : nous vous proposerons la formule adaptée.',
-  ctaLabel: 'Nous contacter',
-  ctaUrl: '/contact',
+  ctaLabel: 'Découvrir l’offre',
+  ctaUrl: '/offres',
   placement: 'BOTH',
 };
 
@@ -42,14 +42,14 @@ export default function HomePage() {
       <div className="promoStrip">
         <div className="publicContainer promoStripInner">
           <div><span className="promoPill">OFFRE DU MOMENT</span><strong>{topOffer.title}</strong><span>{topOffer.subtitle}</span></div>
-          <Link href={topOffer.ctaUrl || '/contact'}>{topOffer.ctaLabel || "Découvrir l'offre"} →</Link>
+          <Link href="/offres">Découvrir l’offre →</Link>
         </div>
       </div>
       <PublicHeader />
 
       <section className="hero heroRich">
         <div className="publicContainer heroGrid">
-          <div>
+          <div className="heroCopy securityBackdrop">
             <span className="eyebrow">Archivage documentaire professionnel</span>
             <h1>Centralisez, classez et <span>sécurisez vos documents.</span></h1>
             <p className="heroLead">Coffria vous aide à structurer vos dossiers, maîtriser les accès, suivre les versions et retrouver rapidement l'information utile dans un espace documentaire professionnel.</p>
@@ -110,7 +110,7 @@ export default function HomePage() {
         <div className="publicContainer">
           <div className="offerBanner promoOfferBanner">
             <div><span className="eyebrow">{homeOffer.subtitle || 'Offre du moment'}</span><h2>{homeOffer.title}</h2><p>{homeOffer.description}</p></div>
-            <Link href={homeOffer.ctaUrl || '/contact'} className="publicPrimary">{homeOffer.ctaLabel || 'Nous contacter'}</Link>
+            <Link href="/offres" className="publicPrimary">Voir les offres du moment</Link>
           </div>
         </div>
       </section>
