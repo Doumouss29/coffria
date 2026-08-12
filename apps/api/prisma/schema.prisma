@@ -199,3 +199,42 @@ model AuditLog {
 
   @@index([tenantId, createdAt])
 }
+
+model MarketingOffer {
+  id          String   @id @default(uuid())
+  title       String
+  subtitle    String?
+  description String
+  ctaLabel    String   @default("Découvrir l'offre")
+  ctaUrl      String   @default("/contact")
+  placement   String   @default("BOTH")
+  startAt     DateTime?
+  endAt       DateTime?
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
+}
+
+model PricingPlan {
+  id                 String   @id @default(uuid())
+  name               String
+  slug               String   @unique
+  subtitle           String?
+  priceLabel         String   @default("Sur devis")
+  monthlyPriceCents  Int?
+  yearlyPriceCents   Int?
+  storageGb          Int?
+  maxUsers           Int?
+  features           Json     @default("[]")
+  badge              String?
+  isHighlighted      Boolean  @default(false)
+  isActive           Boolean  @default(true)
+  sortOrder          Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
+}
