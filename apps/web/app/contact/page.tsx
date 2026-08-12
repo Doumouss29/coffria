@@ -2,18 +2,37 @@
 import { FormEvent, useState } from 'react';
 import PublicHeader from '../../components/PublicHeader';
 import PublicFooter from '../../components/PublicFooter';
+import { api } from '../../lib/api';
 
 export default function ContactPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [company, setCompany] = useState('');
   const [message, setMessage] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState('');
+  const [error, setError] = useState('');
 
-  function submit(e: FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault();
-    const subject = encodeURIComponent(`Demande Coffria - ${company || name}`);
-    const body = encodeURIComponent(`Nom : ${name}\nEmail : ${email}\nOrganisation : ${company}\n\nMessage :\n${message}`);
-    window.location.href = `mailto:contact.lmurbs@gmail.com?subject=${subject}&body=${body}`;
+    try {
+      setBusy(true);
+      setNotice('');
+      setError('');
+      await api('/contact', {
+        method: 'POST',
+        body: JSON.stringify({ name, email, company, message }),
+      });
+      setNotice('Votre message a bien été envoyé. Nous vous répondrons rapidement.');
+      setName('');
+      setEmail('');
+      setCompany('');
+      setMessage('');
+    } catch (e: any) {
+      setError(e.message || 'Impossible d’envoyer votre message pour le moment.');
+    } finally {
+      setBusy(false);
+    }
   }
 
   function openWhatsApp() {
@@ -45,8 +64,10 @@ export default function ContactPage() {
             <label>Adresse email<input type="email" value={email} onChange={e => setEmail(e.target.value)} required /></label>
             <label>Organisation<input value={company} onChange={e => setCompany(e.target.value)} /></label>
             <label>Votre message<textarea value={message} onChange={e => setMessage(e.target.value)} required /></label>
+            {notice && <div className="alert success">{notice}</div>}
+            {error && <div className="alert error">{error}</div>}
             <div className="contactActions">
-              <button type="submit" className="publicPrimary">Envoyer par email</button>
+              <button type="submit" className="publicPrimary" disabled={busy}>{busy ? 'Envoi…' : 'Envoyer le message'}</button>
               <button type="button" className="publicSecondary" onClick={openWhatsApp}>Envoyer par WhatsApp</button>
             </div>
           </form>
