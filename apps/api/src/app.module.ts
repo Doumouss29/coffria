@@ -18,6 +18,7 @@ import { SettingsController } from './settings.controller';
 import { SuperAdminsController } from './superadmins.controller';
 import { GroupsController } from './groups.controller';
 import { MarketingController } from './marketing.controller';
+import { ContactController } from './contact.controller';
 import { UploadCleanupService } from './upload-cleanup.service';
 
 @Module({
@@ -42,6 +43,7 @@ import { UploadCleanupService } from './upload-cleanup.service';
     SuperAdminsController,
     GroupsController,
     MarketingController,
+    ContactController,
   ],
   providers: [PrismaService, AuthService, JwtGuard, StorageService, SearchService, UploadCleanupService],
 })
