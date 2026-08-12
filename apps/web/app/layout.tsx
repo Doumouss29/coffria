@@ -1,5 +1,6 @@
 import './globals.css';
 import './marketing.css';
+import './marketing-v2.css';
 
 export const metadata = {
   title: 'Coffria',
