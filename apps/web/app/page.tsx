@@ -13,7 +13,7 @@ const fallbackOffer = {
   subtitle: 'Offre du moment',
   description: 'Présentez-nous votre organisation et vos besoins documentaires : nous vous proposerons la formule adaptée.',
   ctaLabel: 'Découvrir l’offre',
-  ctaUrl: '/offres',
+  ctaUrl: '/contact',
   placement: 'BOTH',
 };
 
@@ -22,6 +22,10 @@ const fallbackPlans = [
   { id:'p', name:'Professionnel', subtitle:'Pour les équipes qui collaborent au quotidien', priceLabel:'Sur devis', features:['Gestion avancée des droits','Groupes utilisateurs','Accompagnement au déploiement'], isHighlighted:true, badge:'Recommandée' },
   { id:'x', name:'Entreprise', subtitle:'Pour les besoins avancés et volumes importants', priceLabel:'Sur devis', features:['Capacité de stockage adaptée','Support prioritaire','Options sur mesure'], isHighlighted:false },
 ];
+
+function offerDetailHref(offer:any) {
+  return offer?.id && offer.id !== 'fallback' ? `/offres/${offer.id}` : '/offres';
+}
 
 export default function HomePage() {
   const [offers, setOffers] = useState<any[]>([]);
@@ -42,7 +46,7 @@ export default function HomePage() {
       <div className="promoStrip">
         <div className="publicContainer promoStripInner">
           <div><span className="promoPill">OFFRE DU MOMENT</span><strong>{topOffer.title}</strong><span>{topOffer.subtitle}</span></div>
-          <Link href="/offres">Découvrir l’offre →</Link>
+          <Link href={offerDetailHref(topOffer)}>Découvrir l’offre →</Link>
         </div>
       </div>
       <PublicHeader />
@@ -110,7 +114,7 @@ export default function HomePage() {
         <div className="publicContainer">
           <div className="offerBanner promoOfferBanner">
             <div><span className="eyebrow">{homeOffer.subtitle || 'Offre du moment'}</span><h2>{homeOffer.title}</h2><p>{homeOffer.description}</p></div>
-            <Link href="/offres" className="publicPrimary">Voir les offres du moment</Link>
+            <Link href={offerDetailHref(homeOffer)} className="publicPrimary">Découvrir cette offre</Link>
           </div>
         </div>
       </section>
