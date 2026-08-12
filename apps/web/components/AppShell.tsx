@@ -2,14 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Building2, Folder, LayoutDashboard, LogOut, Settings, ShieldCheck, Trash2, Users, UsersRound } from 'lucide-react';
+import { Building2, Folder, LayoutDashboard, LogOut, Megaphone, Settings, ShieldCheck, Trash2, Users, UsersRound } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 const tenantLinks = [
   { href: '/explorer', label: 'Mes dossiers', icon: Folder },
   { href: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
   { href: '/users', label: 'Utilisateurs', icon: Users },
-  { href: '/groups', label: 'Groupes d’accès', icon: UsersRound },
   { href: '/groups', label: 'Groupes d’accès', icon: UsersRound },
   { href: '/trash', label: 'Corbeille', icon: Trash2 },
   { href: '/settings', label: 'Paramètres', icon: Settings },
@@ -23,7 +22,7 @@ export function AppShell({ title, children }: { title: string; children: React.R
   useEffect(() => {
     const token = localStorage.getItem('coffria_token');
     if (!token) {
-      router.replace('/');
+      router.replace('/connexion');
       return;
     }
     const raw = localStorage.getItem('coffria_user');
@@ -34,6 +33,7 @@ export function AppShell({ title, children }: { title: string; children: React.R
     if (user?.role === 'SUPER_ADMIN') {
       return [
         { href: '/admin/tenants', label: 'Entreprises clientes', icon: Building2 },
+        { href: '/admin/marketing', label: 'Vitrine & Marketing', icon: Megaphone },
         { href: '/admin/superadmins', label: 'Super Admins', icon: ShieldCheck },
         { href: '/settings', label: 'Mon compte', icon: Settings },
       ];
@@ -46,7 +46,7 @@ export function AppShell({ title, children }: { title: string; children: React.R
   function logout() {
     localStorage.removeItem('coffria_token');
     localStorage.removeItem('coffria_user');
-    router.replace('/');
+    router.replace('/connexion');
   }
 
   return (
