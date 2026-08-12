@@ -1,0 +1,46 @@
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { JwtModule } from '@nestjs/jwt';
+import { PrismaService } from './prisma.service';
+import { AuthController } from './auth.controller';
+import { AuthService } from './auth.service';
+import { JwtGuard } from './jwt.guard';
+import { ExplorerController } from './explorer.controller';
+import { StorageService } from './storage.service';
+import { SearchController } from './search.controller';
+import { SearchService } from './search.service';
+import { TenantsController } from './tenants.controller';
+import { HealthController } from './health.controller';
+import { TrashController } from './trash.controller';
+import { UsersController } from './users.controller';
+import { DashboardController } from './dashboard.controller';
+import { SettingsController } from './settings.controller';
+import { SuperAdminsController } from './superadmins.controller';
+import { GroupsController } from './groups.controller';
+import { UploadCleanupService } from './upload-cleanup.service';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    JwtModule.register({
+      global: true,
+      secret: process.env.JWT_SECRET,
+      signOptions: { expiresIn: (process.env.JWT_EXPIRES_IN || '8h') as any },
+    }),
+  ],
+  controllers: [
+    AuthController,
+    ExplorerController,
+    SearchController,
+    TenantsController,
+    HealthController,
+    TrashController,
+    UsersController,
+    DashboardController,
+    SettingsController,
+    SuperAdminsController,
+    GroupsController,
+  ],
+  providers: [PrismaService, AuthService, JwtGuard, StorageService, SearchService, UploadCleanupService],
+})
+export class AppModule {}
