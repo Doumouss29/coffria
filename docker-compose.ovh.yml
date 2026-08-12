@@ -1,0 +1,82 @@
+services:
+  coffria-redis:
+    image: redis:7-alpine
+    container_name: coffria-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - coffria_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - coffria_internal
+
+  coffria-api:
+    build:
+      context: ./apps/api
+    container_name: coffria-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL:-redis://coffria-redis:6379}
+      API_PORT: 4000
+    depends_on:
+      coffria-redis:
+        condition: service_healthy
+    expose:
+      - "4000"
+    networks:
+      - proxy
+      - backend
+      - coffria_internal
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.coffria-api.rule=(Host(`coffria.ci`) || Host(`www.coffria.ci`)) && PathPrefix(`/api`)"
+      - "traefik.http.routers.coffria-api.entrypoints=websecure"
+      - "traefik.http.routers.coffria-api.tls=true"
+      - "traefik.http.routers.coffria-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.coffria-api.priority=100"
+      - "traefik.http.services.coffria-api.loadbalancer.server.port=4000"
+
+  coffria-web:
+    build:
+      context: ./apps/web
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    container_name: coffria-web
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      - coffria-api
+    expose:
+      - "3000"
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.coffria-web.rule=Host(`coffria.ci`) || Host(`www.coffria.ci`)"
+      - "traefik.http.routers.coffria-web.entrypoints=websecure"
+      - "traefik.http.routers.coffria-web.tls=true"
+      - "traefik.http.routers.coffria-web.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.coffria-web.priority=10"
+      - "traefik.http.services.coffria-web.loadbalancer.server.port=3000"
+
+volumes:
+  coffria_redis_data:
+
+networks:
+  proxy:
+    external: true
+  backend:
+    external: true
+  coffria_internal:
+    name: coffria_internal
+    driver: bridge
