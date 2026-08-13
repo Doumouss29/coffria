@@ -51,16 +51,19 @@ enum SignatureRecipientStatus {
 }
 
 model Tenant {
-  id                String   @id @default(uuid())
-  name              String
-  slug              String   @unique
-  storageQuotaBytes BigInt   @default(107374182400)
-  maxUsers          Int      @default(10)
-  maxFileSizeBytes  BigInt   @default(5368709120)
-  active            Boolean  @default(true)
+  id                    String   @id @default(uuid())
+  name                  String
+  slug                  String   @unique
+  storageQuotaBytes     BigInt   @default(107374182400)
+  maxUsers              Int      @default(10)
+  maxFileSizeBytes      BigInt   @default(5368709120)
+  active                Boolean  @default(true)
+  signatureEnabled      Boolean  @default(true)
+  signatureUsageLimit   Int?
+  signatureUsageUsed    Int      @default(0)
   subscriptionExpiresAt DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   users             User[]
   folders           Folder[]
@@ -85,13 +88,13 @@ model User {
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
-  foldersCreated      Folder[]            @relation("FolderCreator")
-  docsCreated         Document[]          @relation("DocumentCreator")
-  invitations         Invitation[]        @relation("InvitationCreator")
+  foldersCreated      Folder[]           @relation("FolderCreator")
+  docsCreated         Document[]         @relation("DocumentCreator")
+  invitations         Invitation[]       @relation("InvitationCreator")
   auditLogs           AuditLog[]
   groupMemberships    GroupMember[]
   folderAccesses      FolderUserAccess[]
-  signatureRequests   SignatureRequest[]  @relation("SignatureRequestCreator")
+  signatureRequests   SignatureRequest[] @relation("SignatureRequestCreator")
 }
 
 model Folder {
@@ -225,31 +228,33 @@ model SignatureRequest {
   currentStorageKey String
   expiresAt         DateTime?
   completedAt       DateTime?
+  deletedAt         DateTime?
   createdAt         DateTime               @default(now())
   updatedAt         DateTime               @updatedAt
   recipients        SignatureRecipient[]
 
   @@index([tenantId, status, createdAt])
+  @@index([tenantId, deletedAt])
 }
 
 model SignatureRecipient {
-  id          String                   @id @default(uuid())
-  requestId   String
-  request     SignatureRequest         @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  name        String
-  email       String
-  order       Int
-  tokenHash   String                   @unique
-  status      SignatureRecipientStatus @default(PENDING)
-  viewedAt    DateTime?
-  signedAt    DateTime?
-  refusedAt   DateTime?
-  ipAddress   String?
-  userAgent   String?
+  id            String                   @id @default(uuid())
+  requestId     String
+  request       SignatureRequest         @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  name          String
+  email         String
+  order         Int
+  tokenHash     String                   @unique
+  status        SignatureRecipientStatus @default(PENDING)
+  viewedAt      DateTime?
+  signedAt      DateTime?
+  refusedAt     DateTime?
+  ipAddress     String?
+  userAgent     String?
   signatureText String?
-  evidence    Json                     @default("{}")
-  createdAt   DateTime                 @default(now())
-  updatedAt   DateTime                 @updatedAt
+  evidence      Json                     @default("{}")
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
 
   @@unique([requestId, order])
   @@index([requestId, status])
