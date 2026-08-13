@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Post, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Post, Req, UseGuards } from '@nestjs/common';
 import { IsArray, IsOptional, IsString } from 'class-validator';
 import { JwtGuard } from './jwt.guard';
 import { PrismaService } from './prisma.service';
@@ -32,6 +32,27 @@ export class BulkController {
       frontier.forEach((id) => all.add(id));
     }
     return [...all];
+  }
+
+  @Get('folders')
+  async folderOptions(@Req() req: any) {
+    const tenantId = this.tenant(req);
+    const folders = await this.db.folder.findMany({ where: { tenantId, deletedAt: null }, select: { id: true, parentId: true, name: true }, orderBy: { name: 'asc' } });
+    const byParent = new Map<string | null, any[]>();
+    for (const folder of folders) {
+      const list = byParent.get(folder.parentId) || [];
+      list.push(folder); byParent.set(folder.parentId, list);
+    }
+    const out: Array<{ id: string; name: string; path: string }> = [];
+    const walk = (parentId: string | null, prefix: string) => {
+      for (const folder of byParent.get(parentId) || []) {
+        const path = prefix ? `${prefix} / ${folder.name}` : folder.name;
+        out.push({ id: folder.id, name: folder.name, path });
+        walk(folder.id, path);
+      }
+    };
+    walk(null, '');
+    return out;
   }
 
   @Post('trash')
