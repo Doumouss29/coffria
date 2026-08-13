@@ -27,7 +27,14 @@ export class AuthService {
 
     return {
       accessToken: await this.jwt.signAsync({ sub: user.id, tenantId: user.tenantId, role: user.role }),
-      user: { id: user.id, name: user.name, email: user.email, role: user.role, tenantId: user.tenantId },
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        tenantId: user.tenantId,
+        signatureEnabled: user.role === 'SUPER_ADMIN' ? true : Boolean(user.tenant?.signatureEnabled),
+      },
     };
   }
 
