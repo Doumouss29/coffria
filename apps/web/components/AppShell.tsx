@@ -2,11 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Building2, Folder, LayoutDashboard, LogOut, Megaphone, Settings, ShieldCheck, Trash2, Users, UsersRound } from 'lucide-react';
+import { Bot, Building2, FileSignature, Folder, LayoutDashboard, LogOut, Megaphone, Settings, ShieldCheck, Trash2, Users, UsersRound } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 const tenantLinks = [
   { href: '/explorer', label: 'Mes dossiers', icon: Folder },
+  { href: '/assistant', label: 'Assistant IA', icon: Bot },
+  { href: '/signatures', label: 'Signatures', icon: FileSignature },
   { href: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
   { href: '/users', label: 'Utilisateurs', icon: Users },
   { href: '/groups', label: 'Groupes d’accès', icon: UsersRound },
@@ -21,10 +23,7 @@ export function AppShell({ title, children }: { title: string; children: React.R
 
   useEffect(() => {
     const token = localStorage.getItem('coffria_token');
-    if (!token) {
-      router.replace('/connexion');
-      return;
-    }
+    if (!token) { router.replace('/connexion'); return; }
     const raw = localStorage.getItem('coffria_user');
     if (raw) setUser(JSON.parse(raw));
   }, [router]);
@@ -39,8 +38,8 @@ export function AppShell({ title, children }: { title: string; children: React.R
       ];
     }
     if (user?.role === 'TENANT_ADMIN') return tenantLinks;
-    if (user?.role === 'EDITOR') return tenantLinks.filter((link) => link.href !== '/users');
-    return tenantLinks.filter((link) => !['/users','/groups'].includes(link.href));
+    if (user?.role === 'EDITOR') return tenantLinks.filter((link) => !['/users'].includes(link.href));
+    return tenantLinks.filter((link) => !['/users','/groups','/signatures'].includes(link.href));
   }, [user]);
 
   function logout() {
@@ -56,7 +55,7 @@ export function AppShell({ title, children }: { title: string; children: React.R
         <div className="seller">Une solution LMurbs</div>
         <nav className="nav">
           {links.map(({ href, label, icon: Icon }) => (
-            <Link key={href} href={href} className={pathname === href ? 'active' : ''}>
+            <Link key={href} href={href} className={pathname === href || pathname.startsWith(`${href}/`) ? 'active' : ''}>
               <Icon size={18} /> {label}
             </Link>
           ))}
@@ -64,10 +63,7 @@ export function AppShell({ title, children }: { title: string; children: React.R
         <button className="logout" onClick={logout}><LogOut size={17} /> Déconnexion</button>
       </aside>
       <main className="main">
-        <header className="top">
-          <strong>{title}</strong>
-          <span className="muted">{user?.name || 'Utilisateur Coffria'}</span>
-        </header>
+        <header className="top"><strong>{title}</strong><span className="muted">{user?.name || 'Utilisateur Coffria'}</span></header>
         {children}
       </main>
     </div>
