@@ -51,7 +51,7 @@ export default function HomePage() {
       </div>
       <PublicHeader />
 
-      <section className="hero heroRich">
+      <section className="hero heroRich" style={{paddingTop:38}}>
         <div className="publicContainer heroGrid">
           <div className="heroCopy securityBackdrop">
             <span className="eyebrow">Archivage documentaire professionnel</span>
