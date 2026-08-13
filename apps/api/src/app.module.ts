@@ -25,6 +25,7 @@ import { SignaturesController } from './signatures.controller';
 import { AiController } from './ai.controller';
 import { ArchiveAiService } from './archive-ai.service';
 import { DocumentConversionService } from './document-conversion.service';
+import { CadConversionService } from './cad-conversion.service';
 import { UploadCleanupService } from './upload-cleanup.service';
 
 @Module({
@@ -55,6 +56,16 @@ import { UploadCleanupService } from './upload-cleanup.service';
     SignaturesController,
     AiController,
   ],
-  providers: [PrismaService, AuthService, JwtGuard, StorageService, SearchService, ArchiveAiService, DocumentConversionService, UploadCleanupService],
+  providers: [
+    PrismaService,
+    AuthService,
+    JwtGuard,
+    StorageService,
+    SearchService,
+    ArchiveAiService,
+    DocumentConversionService,
+    CadConversionService,
+    UploadCleanupService,
+  ],
 })
 export class AppModule {}
