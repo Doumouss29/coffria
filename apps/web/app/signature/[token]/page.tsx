@@ -32,6 +32,7 @@ export default function PublicSignaturePage(){
   const pdfCanvasRef=useRef<HTMLCanvasElement|null>(null);
   const inkCanvasRef=useRef<HTMLCanvasElement|null>(null);
   const drawingRef=useRef(false);
+  const signatureOriginRef=useRef<{x:number;y:number}|null>(null);
 
   useEffect(()=>{
     publicApi(`/signatures/public/${encodeURIComponent(token)}`)
@@ -86,20 +87,27 @@ export default function PublicSignaturePage(){
 
   function clearInk(){
     const canvas=inkCanvasRef.current;if(canvas)canvas.getContext('2d')?.clearRect(0,0,canvas.width,canvas.height);
-    setHasInk(false);drawingRef.current=false;setStampMode(false);
+    setHasInk(false);drawingRef.current=false;setStampMode(false);signatureOriginRef.current=null;
   }
-  function point(e:ReactPointerEvent<HTMLCanvasElement>){
+  function rawPoint(e:ReactPointerEvent<HTMLCanvasElement>){
     const canvas=e.currentTarget;const rect=canvas.getBoundingClientRect();
     return{x:(e.clientX-rect.left)*(canvas.width/rect.width),y:(e.clientY-rect.top)*(canvas.height/rect.height)};
+  }
+  function point(e:ReactPointerEvent<HTMLCanvasElement>){
+    const raw=rawPoint(e);
+    if(!signatureOriginRef.current)signatureOriginRef.current=raw;
+    const origin=signatureOriginRef.current;
+    const scale=0.72;
+    return{x:origin.x+(raw.x-origin.x)*scale,y:origin.y+(raw.y-origin.y)*scale};
   }
   function stampSaved(e:ReactPointerEvent<HTMLCanvasElement>){
     if(!savedSignature)return;
     const canvas=e.currentTarget;const ctx=canvas.getContext('2d');if(!ctx)return;
-    const p=point(e);const img=new Image();
+    const p=rawPoint(e);const img=new Image();
     img.onload=()=>{
-      const maxW=canvas.width*.14;const maxH=canvas.height*.075;
+      const maxW=canvas.width*.11;const maxH=canvas.height*.055;
       const ratio=Math.min(maxW/img.width,maxH/img.height,1);
-      const w=Math.max(70,img.width*ratio);const h=img.height*(w/img.width);
+      const w=Math.max(58,img.width*ratio);const h=img.height*(w/img.width);
       const x=Math.max(0,Math.min(canvas.width-w,p.x-w/2));
       const y=Math.max(0,Math.min(canvas.height-h,p.y-h/2));
       ctx.drawImage(img,x,y,w,h);setHasInk(true);setStampMode(false);
@@ -153,7 +161,7 @@ export default function PublicSignaturePage(){
 
   if(error&&!data)return <main className="signaturePublicPage"><div className="signaturePublicCard"><XCircle size={42}/><h1>Signature indisponible</h1><p>{error}</p></div></main>;
   if(!data)return <main className="signaturePublicPage"><div className="signaturePublicCard"><p>Chargement de la demande de signature…</p></div></main>;
-  if(done)return <main className="signaturePublicPage"><div className="signaturePublicCard success"><CheckCircle2 size={52}/><h1>Merci</h1><p>Votre tracé manuscrit a été intégré directement à la page du document et enregistré dans Coffria.</p></div></main>;
+  if(done)return <main className="signaturePublicPage"><div className="signaturePublicCard success"><CheckCircle2 size={52}/><h1>Merci</h1><p>Votre tracé manuscrit a bien été intégré directement à la page du document et enregistré dans Coffria.</p></div></main>;
   if(data.waiting)return <main className="signaturePublicPage"><div className="signaturePublicCard"><ShieldCheck size={44}/><h1>{data.request.title}</h1><p>Le document attend encore la signature d’une personne placée avant vous dans le circuit. Votre lien restera valide et vous pourrez revenir ici ensuite.</p></div></main>;
 
   return <main className="signaturePublicPage">
@@ -181,7 +189,7 @@ export default function PublicSignaturePage(){
         <div className="signatureProgress"><strong>Circuit de signature</strong>{data.request.recipients.map((r:any)=><div key={r.order}><span>{r.order}. {r.name}</span><small>{r.status==='SIGNED'?'Signé':r.status==='REFUSED'?'Refusé':'En attente'}</small></div>)}</div>
         <form onSubmit={sign}>
           {accountMatches&&savedSignature&&<div className="savedSignatureBox"><div><Stamp size={20}/><strong>Ma signature Coffria</strong></div><img src={savedSignature} alt="Signature enregistrée"/><button type="button" className="secondary full" onClick={()=>setStampMode(true)}><Stamp size={17}/> Utiliser ma signature enregistrée</button><small>Activez-la puis touchez directement l’endroit du document où l’apposer.</small></div>}
-          <div className="directInkInstructions"><PenLine size={22}/><div><strong>Signez directement sur le document</strong><span>Avec le doigt, le stylet ou la souris, tracez votre signature exactement à l’endroit voulu. Le trait a été affiné pour une signature plus discrète.</span></div></div>
+          <div className="directInkInstructions"><PenLine size={22}/><div><strong>Signez directement sur le document</strong><span>Avec le doigt, le stylet ou la souris, tracez votre signature à l’endroit voulu. Coffria compacte automatiquement le geste pour obtenir une signature plus discrète sur le PDF.</span></div></div>
           {accountMatches&&!savedSignature&&<label className="saveSignatureChoice"><input type="checkbox" checked={saveForLater} onChange={e=>setSaveForLater(e.target.checked)}/><span><strong>Mémoriser cette signature dans mon compte Coffria</strong><small>Elle sera conservée dans votre espace privé et proposée lors de vos prochaines signatures.</small></span></label>}
           {error&&<div className="signatureInlineError">{error}</div>}
           <p className="signatureConsent">Le tracé visible sur la page {pageNumber} sera fusionné avec le PDF à la même position. Coffria conserve la date, l’adresse IP, le navigateur et l’empreinte du document à titre de traçabilité.</p>
