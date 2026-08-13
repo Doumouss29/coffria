@@ -29,8 +29,7 @@ services:
       - coffria_internal
 
   coffria-api:
-    build:
-      context: ./apps/api
+    image: ghcr.io/doumouss29/coffria-api:latest
     container_name: coffria-api
     restart: unless-stopped
     env_file:
@@ -62,10 +61,7 @@ services:
       - "traefik.http.services.coffria-api.loadbalancer.server.port=4000"
 
   coffria-web:
-    build:
-      context: ./apps/web
-      args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    image: ghcr.io/doumouss29/coffria-web:latest
     container_name: coffria-web
     restart: unless-stopped
     env_file:
