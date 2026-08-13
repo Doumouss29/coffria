@@ -55,6 +55,8 @@ export class BulkController {
     const tenantId = this.tenant(req);
     const { documentIds, folderIds } = this.ids(dto);
     const targetFolderId = dto.targetFolderId || null;
+    if (!documentIds.length && !folderIds.length) throw new BadRequestException('Aucun élément sélectionné');
+    if (documentIds.length && !targetFolderId) throw new BadRequestException('Les fichiers doivent être déplacés dans un dossier.');
     if (targetFolderId) {
       const target = await this.db.folder.findFirst({ where: { id: targetFolderId, tenantId, deletedAt: null } });
       if (!target) throw new BadRequestException('Dossier de destination introuvable');
@@ -64,10 +66,10 @@ export class BulkController {
       const tree = await this.descendants(tenantId, [folderId]);
       if (targetFolderId && tree.includes(targetFolderId)) throw new BadRequestException('Impossible de déplacer un dossier dans un de ses sous-dossiers');
     }
-    await this.db.$transaction([
-      this.db.document.updateMany({ where: { tenantId, id: { in: documentIds }, deletedAt: null }, data: { folderId: targetFolderId as any } }),
-      this.db.folder.updateMany({ where: { tenantId, id: { in: folderIds }, deletedAt: null }, data: { parentId: targetFolderId } }),
-    ]);
+    const operations: any[] = [];
+    if (documentIds.length) operations.push(this.db.document.updateMany({ where: { tenantId, id: { in: documentIds }, deletedAt: null }, data: { folderId: targetFolderId! } }));
+    if (folderIds.length) operations.push(this.db.folder.updateMany({ where: { tenantId, id: { in: folderIds }, deletedAt: null }, data: { parentId: targetFolderId } }));
+    await this.db.$transaction(operations);
     return { success: true };
   }
 
@@ -94,7 +96,6 @@ export class BulkController {
     for (const doc of docs) await this.storage.delete(doc.storageKey).catch(() => undefined);
     await this.db.$transaction(async (tx) => {
       if (docs.length) await tx.document.deleteMany({ where: { id: { in: docs.map((d) => d.id) } } });
-      // Supprimer du plus profond au plus haut pour respecter l'arborescence.
       for (const id of [...folderTree].reverse()) await tx.folder.deleteMany({ where: { id, tenantId, deletedAt: { not: null } } });
     });
     return { success: true, purgedDocuments: docs.length, purgedFolders: folderTree.length };
