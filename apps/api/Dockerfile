@@ -12,8 +12,13 @@ RUN npx prisma generate && npm run build && npm prune --omit=dev && npm cache cl
 
 FROM node:22-bookworm-slim AS runner
 WORKDIR /app
-RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openssl ca-certificates \
+    libreoffice-core-nogui libreoffice-writer-nogui libreoffice-calc-nogui libreoffice-impress-nogui libreoffice-draw-nogui \
+    fonts-dejavu-core fonts-liberation \
+    && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production
+ENV HOME=/tmp/coffria-home
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
