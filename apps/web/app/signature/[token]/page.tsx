@@ -1,0 +1,20 @@
+'use client';
+
+import { useParams } from 'next/navigation';
+import { CheckCircle2, FileSignature, ShieldCheck, XCircle } from 'lucide-react';
+import { FormEvent, useEffect, useState } from 'react';
+
+const API=process.env.NEXT_PUBLIC_API_URL;
+async function publicApi(path:string,init:RequestInit={}){const r=await fetch(`${API}${path}`,{...init,headers:{'Content-Type':'application/json',...(init.headers||{})}});const j=await r.json().catch(()=>({message:r.statusText}));if(!r.ok)throw new Error(j.message||'Erreur');return j;}
+
+export default function PublicSignaturePage(){
+  const params=useParams<{token:string}>();const token=params.token;const[data,setData]=useState<any>(null);const[error,setError]=useState('');const[signature,setSignature]=useState('');const[busy,setBusy]=useState(false);const[done,setDone]=useState(false);
+  useEffect(()=>{publicApi(`/signatures/public/${encodeURIComponent(token)}`).then(setData).catch(e=>setError(e.message))},[token]);
+  async function sign(e:FormEvent){e.preventDefault();if(!confirm('En signant, vous confirmez votre accord sur ce document et acceptez l’enregistrement de la date, de l’adresse IP et du navigateur à titre de preuve Coffria.'))return;setBusy(true);setError('');try{await publicApi(`/signatures/public/${encodeURIComponent(token)}/sign`,{method:'POST',body:JSON.stringify({signatureText:signature})});setDone(true)}catch(e:any){setError(e.message)}finally{setBusy(false)}}
+  async function refuse(){const reason=prompt('Motif du refus (facultatif)')||'';if(!confirm('Confirmer le refus de signer ce document ?'))return;setBusy(true);try{await publicApi(`/signatures/public/${encodeURIComponent(token)}/refuse`,{method:'POST',body:JSON.stringify({reason})});setDone(true)}catch(e:any){setError(e.message)}finally{setBusy(false)}}
+  if(error)return <main className="signaturePublicPage"><div className="signaturePublicCard"><XCircle size={42}/><h1>Signature indisponible</h1><p>{error}</p></div></main>;
+  if(!data)return <main className="signaturePublicPage"><div className="signaturePublicCard"><p>Chargement de la demande de signature…</p></div></main>;
+  if(done)return <main className="signaturePublicPage"><div className="signaturePublicCard success"><CheckCircle2 size={52}/><h1>Merci</h1><p>Votre décision a bien été enregistrée dans Coffria.</p></div></main>;
+  if(data.waiting)return <main className="signaturePublicPage"><div className="signaturePublicCard"><ShieldCheck size={44}/><h1>{data.request.title}</h1><p>Le document attend encore la signature d’une personne placée avant vous dans le circuit. Votre lien restera valide et vous pourrez revenir ici ensuite.</p></div></main>;
+  return <main className="signaturePublicPage"><div className="signaturePublicHeader"><div className="brand">Coffr<span>i</span>a</div><span>Signature sécurisée</span></div><div className="signaturePublicLayout"><section className="signatureDocument"><iframe src={data.documentUrl} title={data.request.documentName}/></section><aside className="signaturePanel"><FileSignature size={35}/><h1>{data.request.title}</h1><p className="muted">Document : {data.request.documentName}</p>{data.request.message&&<div className="signatureMessage">{data.request.message}</div>}<div className="signatureProgress"><strong>Circuit de signature</strong>{data.request.recipients.map((r:any)=><div key={r.order}><span>{r.order}. {r.name}</span><small>{r.status==='SIGNED'?'Signé':r.status==='REFUSED'?'Refusé':'En attente'}</small></div>)}</div><form onSubmit={sign}><label className="field">Votre signature<input value={signature} onChange={e=>setSignature(e.target.value)} placeholder="Tapez votre nom complet" minLength={2} required/></label><p className="signatureConsent">En cliquant sur « Signer », vous appliquez une signature Coffria au PDF et acceptez la conservation des éléments de traçabilité.</p><button className="publicPrimary full" disabled={busy}>{busy?'Enregistrement…':'Signer le document'}</button><button type="button" className="dangerButton full" disabled={busy} onClick={refuse}>Refuser de signer</button></form></aside></div></main>;
+}
