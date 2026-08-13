@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, ChevronLeft, ChevronRight, Download, FileText } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Download, FileText, Printer } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { AppShell } from '../../../components/AppShell';
@@ -11,130 +11,22 @@ import { api } from '../../../lib/api';
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
 
 function PdfSinglePage({pdf,pageNumber}:{pdf:any;pageNumber:number}){
-  const hostRef=useRef<HTMLDivElement|null>(null);
-  const canvasRef=useRef<HTMLCanvasElement|null>(null);
-  const[busy,setBusy]=useState(true);
-
-  useEffect(()=>{
-    let cancelled=false;
-    let renderTask:any;
-    let resizeTimer:any;
-
-    async function render(){
-      const host=hostRef.current;
-      const canvas=canvasRef.current;
-      if(!host||!canvas)return;
-      setBusy(true);
-      try{
-        const page=await pdf.getPage(pageNumber);
-        if(cancelled)return;
-        const base=page.getViewport({scale:1});
-        const available=Math.max(280,host.clientWidth-24);
-        const targetWidth=Math.min(1100,available);
-        const viewport=page.getViewport({scale:targetWidth/base.width});
-        const ratio=Math.min(window.devicePixelRatio||1,2);
-        canvas.width=Math.ceil(viewport.width*ratio);
-        canvas.height=Math.ceil(viewport.height*ratio);
-        canvas.style.width=`${Math.round(viewport.width)}px`;
-        canvas.style.height=`${Math.round(viewport.height)}px`;
-        const ctx=canvas.getContext('2d');
-        if(!ctx)return;
-        renderTask=page.render({canvasContext:ctx,viewport,transform:ratio!==1?[ratio,0,0,ratio,0,0]:undefined});
-        await renderTask.promise;
-      }catch(e:any){
-        if(!cancelled&&e?.name!=='RenderingCancelledException')console.error('PDF render error',e);
-      }finally{
-        if(!cancelled)setBusy(false);
-      }
-    }
-
-    void render();
-    const ro=new ResizeObserver(()=>{
-      clearTimeout(resizeTimer);
-      resizeTimer=setTimeout(()=>{
-        try{renderTask?.cancel()}catch{}
-        void render();
-      },250);
-    });
-    if(hostRef.current)ro.observe(hostRef.current);
-    return()=>{
-      cancelled=true;
-      clearTimeout(resizeTimer);
-      ro.disconnect();
-      try{renderTask?.cancel()}catch{}
-    };
-  },[pdf,pageNumber]);
-
-  return <div className="pdfSinglePage" ref={hostRef}>
-    <canvas ref={canvasRef} className="pdfDocumentCanvas"/>
-    {busy&&<div className="pdfRendering">Chargement de la page…</div>}
-  </div>;
+  const hostRef=useRef<HTMLDivElement|null>(null);const canvasRef=useRef<HTMLCanvasElement|null>(null);const[busy,setBusy]=useState(true);
+  useEffect(()=>{let cancelled=false;let renderTask:any;let resizeTimer:any;async function render(){const host=hostRef.current,canvas=canvasRef.current;if(!host||!canvas)return;setBusy(true);try{const page=await pdf.getPage(pageNumber);if(cancelled)return;const base=page.getViewport({scale:1});const available=Math.max(280,host.clientWidth-24);const targetWidth=Math.min(1100,available);const viewport=page.getViewport({scale:targetWidth/base.width});const ratio=Math.min(window.devicePixelRatio||1,2);canvas.width=Math.ceil(viewport.width*ratio);canvas.height=Math.ceil(viewport.height*ratio);canvas.style.width=`${Math.round(viewport.width)}px`;canvas.style.height=`${Math.round(viewport.height)}px`;const ctx=canvas.getContext('2d');if(!ctx)return;renderTask=page.render({canvasContext:ctx,viewport,transform:ratio!==1?[ratio,0,0,ratio,0,0]:undefined});await renderTask.promise}catch(e:any){if(!cancelled&&e?.name!=='RenderingCancelledException')console.error('PDF render error',e)}finally{if(!cancelled)setBusy(false)}}void render();const ro=new ResizeObserver(()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{try{renderTask?.cancel()}catch{};void render()},250)});if(hostRef.current)ro.observe(hostRef.current);return()=>{cancelled=true;clearTimeout(resizeTimer);ro.disconnect();try{renderTask?.cancel()}catch{}}},[pdf,pageNumber]);
+  return <div className="pdfSinglePage" ref={hostRef}><canvas ref={canvasRef} className="pdfDocumentCanvas"/>{busy&&<div className="pdfRendering">Chargement de la page…</div>}</div>;
 }
 
 export default function ViewerPage(){
-  const params=useParams<{id:string}>();
-  const id=params.id;
-  const[data,setData]=useState<any>(null);
-  const[error,setError]=useState('');
-  const[pdf,setPdf]=useState<any>(null);
-  const[pdfPage,setPdfPage]=useState(1);
-  const[pdfCount,setPdfCount]=useState(1);
-
-  useEffect(()=>{api(`/preview/${id}`).then(setData).catch(e=>setError(e.message));},[id]);
-
-  useEffect(()=>{
-    if(data?.kind!=='pdf'||!data?.url)return;
-    let cancelled=false;
-    const task=pdfjsLib.getDocument({url:data.url});
-    task.promise.then((loaded:any)=>{
-      if(cancelled)return;
-      setPdf(loaded);
-      setPdfCount(loaded.numPages||1);
-      setPdfPage(1);
-    }).catch((e:any)=>{
-      if(!cancelled)setError(`Impossible d'afficher le PDF : ${e?.message||'erreur'}`);
-    });
-    return()=>{
-      cancelled=true;
-      try{task.destroy()}catch{}
-      setPdf(null);
-    };
-  },[data?.kind,data?.url]);
-
-  useEffect(()=>{
-    if(data?.kind!=='pdf')return;
-    const onKey=(e:KeyboardEvent)=>{
-      if(e.key==='ArrowLeft')setPdfPage(p=>Math.max(1,p-1));
-      if(e.key==='ArrowRight')setPdfPage(p=>Math.min(pdfCount,p+1));
-    };
-    window.addEventListener('keydown',onKey);
-    return()=>window.removeEventListener('keydown',onKey);
-  },[data?.kind,pdfCount]);
-
+  const params=useParams<{id:string}>();const id=params.id;const[data,setData]=useState<any>(null);const[error,setError]=useState('');const[pdf,setPdf]=useState<any>(null);const[pdfPage,setPdfPage]=useState(1);const[pdfCount,setPdfCount]=useState(1);
+  useEffect(()=>{api(`/preview/${id}`).then(setData).catch(e=>setError(e.message))},[id]);
+  useEffect(()=>{if(data?.kind!=='pdf'||!data?.url)return;let cancelled=false;const task=pdfjsLib.getDocument({url:data.url});task.promise.then((loaded:any)=>{if(cancelled)return;setPdf(loaded);setPdfCount(loaded.numPages||1);setPdfPage(1)}).catch((e:any)=>{if(!cancelled)setError(`Impossible d'afficher le PDF : ${e?.message||'erreur'}`)});return()=>{cancelled=true;try{task.destroy()}catch{};setPdf(null)}},[data?.kind,data?.url]);
+  useEffect(()=>{if(data?.kind!=='pdf')return;const onKey=(e:KeyboardEvent)=>{if(e.key==='ArrowLeft')setPdfPage(p=>Math.max(1,p-1));if(e.key==='ArrowRight')setPdfPage(p=>Math.min(pdfCount,p+1))};window.addEventListener('keydown',onKey);return()=>window.removeEventListener('keydown',onKey)},[data?.kind,pdfCount]);
+  function printDocument(){const url=data?.url||data?.downloadUrl;if(!url)return;const frame=document.createElement('iframe');frame.style.position='fixed';frame.style.right='0';frame.style.bottom='0';frame.style.width='0';frame.style.height='0';frame.style.border='0';frame.src=url;frame.onload=()=>{setTimeout(()=>{try{frame.contentWindow?.focus();frame.contentWindow?.print()}catch{window.open(url,'_blank','noopener,noreferrer')}setTimeout(()=>frame.remove(),1500)},300)};document.body.appendChild(frame)}
   if(error)return <AppShell title="Visionneuse"><section className="content"><div className="alert error">{error}</div></section></AppShell>;
   if(!data)return <AppShell title="Visionneuse"><section className="content"><p>Chargement du document…</p></section></AppShell>;
-
-  return <AppShell title="Visionneuse documentaire"><section className="viewerPage">
-    <div className="viewerToolbar">
-      <Link href="/explorer" className="secondary"><ArrowLeft size={16}/> Retour</Link>
-      <div className="viewerTitle"><strong>{data.name}</strong><span>{(data.extension||data.mimeType||'fichier').toUpperCase()}</span></div>
-      {data.downloadUrl&&<a className="secondary viewerDownload" href={data.downloadUrl}><Download size={16}/> Télécharger</a>}
-    </div>
-
-    <div className="viewerCanvas">
-      {data.kind==='pdf'&&<div className="pdfViewer">
-        <div className="pdfPageTools" aria-label="Navigation dans le PDF">
-          <button type="button" onClick={()=>setPdfPage(p=>Math.max(1,p-1))} disabled={pdfPage<=1} aria-label="Page précédente"><ChevronLeft size={19}/><span>Page précédente</span></button>
-          <div className="pdfPageStatus"><span>Page</span><strong>{pdfPage}</strong><span>sur {pdfCount}</span></div>
-          <button type="button" onClick={()=>setPdfPage(p=>Math.min(pdfCount,p+1))} disabled={pdfPage>=pdfCount} aria-label="Page suivante"><span>Page suivante</span><ChevronRight size={19}/></button>
-        </div>
-        <div className="pdfStage">{pdf?<PdfSinglePage pdf={pdf} pageNumber={pdfPage}/>:<div className="pdfLoading">Ouverture du PDF…</div>}</div>
-      </div>}
-
-      {data.kind==='image'&&<div className="imagePreview"><img src={data.url} alt={data.name}/></div>}
-      {data.kind==='text'&&<pre className="textPreview">{data.text}</pre>}
-      {data.kind==='office'&&<div className="officePreview"><FileText size={48}/><h2>{data.name}</h2>{data.text?<pre>{data.text}</pre>:<><p>La prévisualisation de ce document n’est pas disponible. Le fichier original reste téléchargeable.</p><a className="publicPrimary" href={data.downloadUrl}>Télécharger le fichier</a></>}</div>}
-      {data.kind==='generic'&&<div className="officePreview"><FileText size={48}/><h2>Prévisualisation non disponible pour ce format</h2><p>Le fichier original reste disponible au téléchargement.</p><a className="publicPrimary" href={data.downloadUrl}>Télécharger</a></div>}
-    </div>
+  const printable=Boolean(data.url||data.downloadUrl);
+  return <AppShell title="Visionneuse documentaire"><section className="viewerPage"><div className="viewerToolbar"><Link href="/explorer" className="secondary"><ArrowLeft size={16}/> Retour</Link><div className="viewerTitle"><strong>{data.name}</strong><span>{(data.extension||data.mimeType||'fichier').toUpperCase()}</span></div><div className="viewerToolbarActions">{printable&&<button type="button" className="secondary viewerPrint" onClick={printDocument}><Printer size={16}/> Imprimer</button>}{data.downloadUrl&&<a className="secondary viewerDownload" href={data.downloadUrl}><Download size={16}/> Télécharger</a>}</div></div>
+    <div className="viewerCanvas">{data.kind==='pdf'&&<div className="pdfViewer"><div className="pdfPageTools" aria-label="Navigation dans le PDF"><button type="button" onClick={()=>setPdfPage(p=>Math.max(1,p-1))} disabled={pdfPage<=1} aria-label="Page précédente"><ChevronLeft size={19}/><span>Page précédente</span></button><div className="pdfPageStatus"><span>Page</span><strong>{pdfPage}</strong><span>sur {pdfCount}</span></div><button type="button" onClick={()=>setPdfPage(p=>Math.min(pdfCount,p+1))} disabled={pdfPage>=pdfCount} aria-label="Page suivante"><span>Page suivante</span><ChevronRight size={19}/></button></div><div className="pdfStage">{pdf?<PdfSinglePage pdf={pdf} pageNumber={pdfPage}/>:<div className="pdfLoading">Ouverture du PDF…</div>}</div></div>}{data.kind==='image'&&<div className="imagePreview"><img src={data.url} alt={data.name}/></div>}{data.kind==='text'&&<pre className="textPreview">{data.text}</pre>}{data.kind==='office'&&<div className="officePreview"><FileText size={48}/><h2>{data.name}</h2>{data.text?<pre>{data.text}</pre>:<><p>La prévisualisation de ce document n’est pas disponible. Le fichier original reste téléchargeable.</p><a className="publicPrimary" href={data.downloadUrl}>Télécharger le fichier</a></>}</div>}{data.kind==='generic'&&<div className="officePreview"><FileText size={48}/><h2>Prévisualisation non disponible pour ce format</h2><p>Le fichier original reste disponible au téléchargement.</p><a className="publicPrimary" href={data.downloadUrl}>Télécharger</a></div>}</div>
+    <style jsx global>{`.viewerToolbarActions{display:flex;gap:8px;align-items:center}.viewerPrint{min-height:40px}@media(max-width:850px){.viewerToolbarActions{margin-left:auto}.viewerPrint,.viewerDownload{font-size:0;width:42px;height:42px;padding:0!important}.viewerPrint svg,.viewerDownload svg{width:18px;height:18px}}`}</style>
   </section></AppShell>;
 }
