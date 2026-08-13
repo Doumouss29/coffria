@@ -7,3 +7,17 @@
 /* v1.4.2 - menu Actions rendu hors du tableau pour éviter tout clipping */
 .actionDropdownPortal{position:fixed;right:auto;z-index:10000;min-width:220px;max-width:calc(100vw - 24px)}
 .moreButton{position:relative;z-index:1;min-width:42px;min-height:42px}
+
+/* v1.5.1 - mobile : conserver les actions fichiers/dossiers visibles */
+@media(max-width:850px){
+  .table th:last-child,.table td.actionCell{display:table-cell!important}
+  .table th:last-child{width:58px;min-width:58px;text-align:center;font-size:0;padding:8px}
+  .table th:last-child::after{content:'⋮';font-size:20px;color:var(--navy)}
+  .table td.actionCell{width:58px;min-width:58px;padding:8px;text-align:center}
+  .table td.actionCell .moreButton{margin-left:auto;margin-right:auto;min-width:44px;min-height:44px}
+  .table th:first-child,.table td:first-child{width:42px;min-width:42px;padding-left:8px;padding-right:6px}
+  .table th:nth-child(2),.table td:nth-child(2){display:table-cell;min-width:0}
+  .table th:nth-child(3),.table td:nth-child(3){display:none}
+  .tableCard{overflow:visible}
+  .actionDropdownPortal{max-width:calc(100vw - 16px)}
+}
