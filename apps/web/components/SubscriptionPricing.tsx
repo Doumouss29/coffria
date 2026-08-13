@@ -1,73 +1,34 @@
 'use client';
-
 import Link from 'next/link';
 import { Check, Gift, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../lib/api';
 
-const fallbackPlans = [
-  { id:'essentiel', slug:'essentiel', name:'ESSENTIEL', subtitle:'La référence pour numériser et sécuriser vos archives prioritaires.', monthlyPriceCents:3500000, yearlyPriceCents:38500000, storageGb:100, features:['100 Go de stockage documentaire','Recherche intelligente IA et indexation documentaire','Empreinte SHA-256 et traçabilité','Gestion des dossiers, versions et corbeille','Accès ordinateur, tablette et smartphone','Support standard','Signature graphique : non incluse'], isHighlighted:false },
-  { id:'pro', slug:'pro', name:'PRO', subtitle:'La formule tout-en-un pour accélérer vos processus documentaires et de validation.', monthlyPriceCents:9500000, yearlyPriceCents:104500000, storageGb:500, features:['Tout le Pack ESSENTIEL','500 Go de stockage documentaire','Recherche intelligente IA et indexation documentaire','Signature graphique par e-mail','Dossier de preuve : e-mail, date, heure, IP et traçabilité','Gestion avancée des droits et groupes','Support prioritaire'], badge:'Bestseller', isHighlighted:true },
-  { id:'corporate', slug:'corporate', name:'CORPORATE', subtitle:'L’expérience sur-mesure pour les grandes organisations et les volumes importants.', monthlyPriceCents:18000000, yearlyPriceCents:180000000, storageGb:1000, features:['Tout le Pack PRO','1 To de stockage documentaire','Recherche intelligente IA et indexation documentaire','Signature graphique multi-signataires et workflows','Quota de signature configurable ou illimité selon contrat','Accès API et intégrations selon périmètre contractuel','Accompagnement et support dédiés'], badge:'Corporate', isHighlighted:false },
+const fallbackPlans=[
+{id:'essentiel',slug:'essentiel',name:'ESSENTIEL',subtitle:'La référence pour numériser et sécuriser vos archives prioritaires.',monthlyPriceCents:3500000,yearlyPriceCents:38500000,storageGb:100,isHighlighted:false},
+{id:'pro',slug:'pro',name:'PRO',subtitle:'La formule tout-en-un pour accélérer vos processus documentaires et de validation.',monthlyPriceCents:9500000,yearlyPriceCents:104500000,storageGb:500,badge:'Bestseller',isHighlighted:true},
+{id:'corporate',slug:'corporate',name:'CORPORATE',subtitle:'L’expérience sur-mesure pour les grandes organisations et les volumes importants.',monthlyPriceCents:18000000,yearlyPriceCents:180000000,storageGb:1000,badge:'Corporate',isHighlighted:false},
 ];
-
-const allowedPlanSlugs = new Set(['essentiel','pro','corporate']);
-function fcfa(cents?:number|null){if(cents==null)return 'Sur devis';return `${Math.round(cents/100).toLocaleString('fr-FR')} FCFA HT`;}
-function freeMonths(plan:any){return String(plan.slug||plan.name).toLowerCase().includes('corporate')?2:1;}
-function withoutChatAssistant(features:any){return (Array.isArray(features)?features:[]).filter((item:any)=>!/(assistant\s*(chat\s*)?ia|chat\s*ia|assistant\s+conversationnel|assistant\s+ia)/i.test(String(item)));}
-function normalizeFeatures(features:any){return withoutChatAssistant(features).map((item:any)=>{const text=String(item);return /recherche intelligente/i.test(text)&&!/\bia\b/i.test(text)?text.replace(/recherche intelligente/i,'Recherche intelligente IA'):text;});}
-function isExcludedFeature(item:string){return /non inclus(?:e|es)?\b/i.test(item);}
-
+const allowed=new Set(['essentiel','pro','corporate']);
+const base=['Recherche intelligente IA et indexation documentaire','Empreinte SHA-256 et traçabilité','Gestion des dossiers, versions et corbeille','Gestion des utilisateurs et des droits','Accès ordinateur, tablette et smartphone','Support standard'];
+const plusPro=['Signature graphique par e-mail','Dossier de preuve de signature','Gestion avancée des droits et groupes','Support prioritaire'];
+const plusCorporate=['Signature graphique multi-signataires et workflows','Quota de signature configurable','Accès API et intégrations','Accompagnement et support dédiés'];
+const compare=[
+['Stockage','100 Go','500 Go','1 To'],['Recherche intelligente IA',true,true,true],['Indexation documentaire',true,true,true],['SHA-256 et traçabilité',true,true,true],['Dossiers, versions et corbeille',true,true,true],['Signature graphique',false,true,true],['Dossier de preuve',false,true,true],['Droits et groupes avancés',false,true,true],['Multi-signataires et workflows',false,false,true],['API et intégrations',false,false,true],['Support','Standard','Prioritaire','Dédié']
+] as const;
+function slug(p:any){return String(p.slug||p.name||'').toLowerCase()}
+function fcfa(c?:number|null){return c==null?'Sur devis':`${Math.round(c/100).toLocaleString('fr-FR')} FCFA HT`}
+function freeMonths(p:any){return slug(p)==='corporate'?2:1}
+function features(p:any){return slug(p)==='corporate'?[...base,...plusPro,...plusCorporate]:slug(p)==='pro'?[...base,...plusPro]:base}
+function mark(v:boolean|string){return v===true?<Check size={18} style={{color:'#18794e'}}/>:v===false?<X size={18} style={{color:'#b42318'}}/>:<span>{v}</span>}
 export function SubscriptionPricing(){
-  const[plans,setPlans]=useState<any[]>([]);
-  const[selectedSlug,setSelectedSlug]=useState('');
-  const[billing,setBilling]=useState<'monthly'|'yearly'>('monthly');
-  const[initialized,setInitialized]=useState(false);
-  const choiceRef=useRef<HTMLDivElement|null>(null);
-
-  useEffect(()=>{
-    api('/marketing/public/plans').then((items:any[])=>setPlans(items.filter((plan:any)=>allowedPlanSlugs.has(String(plan.slug||'').toLowerCase())).map((plan:any)=>({...plan,features:normalizeFeatures(plan.features)})))).catch(()=>{});
-    const params=new URLSearchParams(window.location.search);
-    setSelectedSlug(params.get('plan')||'');
-    setBilling(params.get('billing')==='yearly'?'yearly':'monthly');
-    setInitialized(true);
-  },[]);
-
-  const displayPlans=plans.length?plans:fallbackPlans;
-  const selected=useMemo(()=>displayPlans.find((p:any)=>String(p.slug||p.name).toLowerCase()===selectedSlug.toLowerCase()),[displayPlans,selectedSlug]);
-
-  useEffect(()=>{
-    if(initialized&&selectedSlug&&selected){
-      const timer=setTimeout(()=>choiceRef.current?.scrollIntoView({behavior:'smooth',block:'center'}),150);
-      return()=>clearTimeout(timer);
-    }
-  },[initialized,selectedSlug,selected]);
-
-  function choose(plan:any){
-    setSelectedSlug(plan.slug||plan.name);
-    setBilling('monthly');
-    setTimeout(()=>choiceRef.current?.scrollIntoView({behavior:'smooth',block:'center'}),50);
-  }
-
-  return <>
-    <section className="section"><div className="publicContainer"><div className="subscriptionSteps"><span className="active">1. Pack</span><span>2. Périodicité</span><span>3. Conditions</span><span>4. Souscription</span></div><div className="pricingGrid">{displayPlans.map((plan:any)=>{
-      const isSelected=selected&&(selected.id===plan.id||selected.slug===plan.slug);
-      return <article key={plan.id||plan.name} className={`priceCard ${plan.isHighlighted?'featured':''} ${isSelected?'selectedPlan':''}`}>
-        {plan.badge&&<span className="planBadge">{plan.badge}</span>}
-        <div className="priceName">{plan.name}</div><p>{plan.subtitle}</p>
-        <div className="priceAmount">{fcfa(plan.monthlyPriceCents)}<small> / mois</small></div>
-        {plan.storageGb&&<div className="planMeta">{plan.storageGb>=1000?'1 To':`${plan.storageGb} Go`} de stockage</div>}
-        <ul className="priceList" style={{listStyle:'none',paddingLeft:0}}>{normalizeFeatures(plan.features).map((item:string)=>{const excluded=isExcludedFeature(item);return <li key={item}>{excluded?<X size={15} style={{color:'#b42318',flexShrink:0}}/>:<Check size={15} style={{color:'#18794e',flexShrink:0}}/>}{item}</li>})}</ul>
-        <button type="button" onClick={()=>choose(plan)} className={plan.isHighlighted?'publicPrimary':'publicSecondary'}>{isSelected?'Pack sélectionné':'Choisir ce pack'}</button>
-      </article>})}</div></div></section>
-
-    {selected&&<section className="section sectionAlt" ref={choiceRef}><div className="publicContainer billingChoice">
-      <div><span className="eyebrow">Étape 2 sur 4</span><h2>Choisissez la périodicité du Pack {selected.name}</h2><p>Le paiement annuel inclut {freeMonths(selected)} mois offert{freeMonths(selected)>1?'s':''}.</p></div>
-      <div className="billingOptions">
-        <button type="button" className={billing==='monthly'?'billingOption active':'billingOption'} onClick={()=>setBilling('monthly')}><span>Mensuel</span><strong>{fcfa(selected.monthlyPriceCents)}</strong><small>Facturé chaque mois</small></button>
-        <button type="button" className={billing==='yearly'?'billingOption active':'billingOption'} onClick={()=>setBilling('yearly')}><span>Annuel</span><strong>{fcfa(selected.yearlyPriceCents)}</strong><small><Gift size={15}/> {freeMonths(selected)} mois offert{freeMonths(selected)>1?'s':''}</small></button>
-      </div>
-      <div className="billingContinue"><Link className="publicPrimary" href={`/conditions?plan=${encodeURIComponent(selected.slug||selected.name)}&billing=${billing}`}>Continuer vers les conditions</Link><button type="button" className="publicSecondary" onClick={()=>setSelectedSlug('')}>Changer de pack</button></div>
-    </div></section>}
-  </>;
-}
+const[plans,setPlans]=useState<any[]>([]);const[selectedSlug,setSelectedSlug]=useState('');const[billing,setBilling]=useState<'monthly'|'yearly'>('monthly');const[initialized,setInitialized]=useState(false);const choiceRef=useRef<HTMLDivElement|null>(null);
+useEffect(()=>{api('/marketing/public/plans').then((items:any[])=>setPlans(items.filter((p:any)=>allowed.has(slug(p))))).catch(()=>{});const q=new URLSearchParams(window.location.search);setSelectedSlug(q.get('plan')||'');setBilling(q.get('billing')==='yearly'?'yearly':'monthly');setInitialized(true)},[]);
+const displayPlans=plans.length?plans:fallbackPlans;const selected=useMemo(()=>displayPlans.find((p:any)=>slug(p)===selectedSlug.toLowerCase()),[displayPlans,selectedSlug]);
+useEffect(()=>{if(initialized&&selectedSlug&&selected){const t=setTimeout(()=>choiceRef.current?.scrollIntoView({behavior:'smooth',block:'center'}),150);return()=>clearTimeout(t)}},[initialized,selectedSlug,selected]);
+function choose(p:any){setSelectedSlug(p.slug||p.name);setBilling('monthly');setTimeout(()=>choiceRef.current?.scrollIntoView({behavior:'smooth',block:'center'}),50)}
+return <>
+<section className="section"><div className="publicContainer"><div className="subscriptionSteps"><span className="active">1. Pack</span><span>2. Périodicité</span><span>3. Conditions</span><span>4. Souscription</span></div><div className="pricingGrid">{displayPlans.map((p:any)=>{const s=slug(p);const chosen=selected&&slug(selected)===s;return <article key={p.id||p.name} className={`priceCard ${p.isHighlighted?'featured':''} ${chosen?'selectedPlan':''}`}>{p.badge&&<span className="planBadge">{p.badge}</span>}<div className="priceName">{p.name}</div><p>{p.subtitle}</p><div className="priceAmount">{fcfa(p.monthlyPriceCents)}<small> / mois</small></div>{p.storageGb&&<div className="planMeta">{p.storageGb>=1000?'1 To':`${p.storageGb} Go`} de stockage</div>}{s!=='essentiel'&&<div style={{fontWeight:800,margin:'16px 0 8px'}}>{s==='pro'?'Tout ESSENTIEL +':'Tout PRO +'}</div>}<ul className="priceList" style={{listStyle:'none',paddingLeft:0}}>{features(p).map(x=><li key={x}><Check size={15} style={{color:'#18794e',flexShrink:0}}/>{x}</li>)}</ul>{s==='essentiel'&&<div style={{display:'flex',gap:8,alignItems:'center',margin:'10px 0'}}><X size={15} style={{color:'#b42318'}}/>Signature graphique : non incluse</div>}<button type="button" onClick={()=>choose(p)} className={p.isHighlighted?'publicPrimary':'publicSecondary'}>{chosen?'Pack sélectionné':'Choisir ce pack'}</button></article>})}</div></div></section>
+<section className="section sectionAlt"><div className="publicContainer"><span className="eyebrow">Comparatif</span><h2>Comparez les packs Coffria</h2><p>Chaque pack supérieur reprend les fonctions du pack précédent et ajoute ses propres capacités.</p><div style={{overflowX:'auto',background:'#fff',border:'1px solid #d9dee7',borderRadius:14}}><table style={{width:'100%',minWidth:720,borderCollapse:'collapse'}}><thead><tr><th style={{textAlign:'left',padding:16}}>Fonctionnalité</th><th>ESSENTIEL</th><th>PRO</th><th>CORPORATE</th></tr></thead><tbody>{compare.map(r=><tr key={r[0]} style={{borderTop:'1px solid #edf0f4'}}><td style={{padding:14,fontWeight:650}}>{r[0]}</td><td style={{padding:14,textAlign:'center'}}>{mark(r[1])}</td><td style={{padding:14,textAlign:'center'}}>{mark(r[2])}</td><td style={{padding:14,textAlign:'center'}}>{mark(r[3])}</td></tr>)}</tbody></table></div></div></section>
+{selected&&<section className="section" ref={choiceRef}><div className="publicContainer billingChoice"><div><span className="eyebrow">Étape 2 sur 4</span><h2>Choisissez la périodicité du Pack {selected.name}</h2><p>Le paiement annuel inclut {freeMonths(selected)} mois offert{freeMonths(selected)>1?'s':''}.</p></div><div className="billingOptions"><button type="button" className={billing==='monthly'?'billingOption active':'billingOption'} onClick={()=>setBilling('monthly')}><span>Mensuel</span><strong>{fcfa(selected.monthlyPriceCents)}</strong><small>Facturé chaque mois</small></button><button type="button" className={billing==='yearly'?'billingOption active':'billingOption'} onClick={()=>setBilling('yearly')}><span>Annuel</span><strong>{fcfa(selected.yearlyPriceCents)}</strong><small><Gift size={15}/> {freeMonths(selected)} mois offert{freeMonths(selected)>1?'s':''}</small></button></div><div className="billingContinue"><Link className="publicPrimary" href={`/conditions?plan=${encodeURIComponent(selected.slug||selected.name)}&billing=${billing}`}>Continuer vers les conditions</Link><button type="button" className="publicSecondary" onClick={()=>setSelectedSlug('')}>Changer de pack</button></div></div></section>}
+</>}
