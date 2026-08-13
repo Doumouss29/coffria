@@ -1,0 +1,19 @@
+services:
+  coffria-ollama:
+    image: ollama/ollama:latest
+    container_name: coffria-ollama
+    restart: unless-stopped
+    volumes:
+      - coffria_ollama_data:/root/.ollama
+    networks:
+      - coffria_internal
+    expose:
+      - "11434"
+
+volumes:
+  coffria_ollama_data:
+
+networks:
+  coffria_internal:
+    external: true
+    name: coffria_internal
