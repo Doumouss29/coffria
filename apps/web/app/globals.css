@@ -21,3 +21,36 @@
   .tableCard{overflow:visible}
   .actionDropdownPortal{max-width:calc(100vw - 16px)}
 }
+
+/* v1.5.1 - modales utilisables sur mobile, y compris la signature */
+@media(max-width:850px){
+  .modalBackdrop{
+    display:block;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+    padding:max(12px,env(safe-area-inset-top)) 12px max(20px,env(safe-area-inset-bottom));
+  }
+  .modal,.modal.wide{
+    width:100%;
+    max-width:none;
+    max-height:calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    overflow-y:auto;
+    overscroll-behavior:contain;
+    margin:0 auto;
+    padding:20px 18px calc(24px + env(safe-area-inset-bottom));
+    border-radius:16px;
+  }
+  .modal h2{font-size:clamp(24px,7vw,34px);line-height:1.08}
+  .modal .field input,.modal .field select,.modal .field textarea{width:100%;min-width:0}
+  .modalActions{
+    position:sticky;
+    bottom:calc(-24px - env(safe-area-inset-bottom));
+    z-index:2;
+    margin:22px -18px calc(-24px - env(safe-area-inset-bottom));
+    padding:12px 18px calc(12px + env(safe-area-inset-bottom));
+    background:#fff;
+    border-top:1px solid var(--line);
+    flex-direction:column-reverse;
+  }
+  .modalActions .primary,.modalActions .secondary{width:100%;min-height:46px}
+}
