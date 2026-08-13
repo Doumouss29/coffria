@@ -59,7 +59,7 @@ export default function HomePage() {
             <p className="heroLead">Coffria vous aide à structurer vos dossiers, maîtriser les accès, suivre les versions et retrouver rapidement l'information utile dans un espace documentaire professionnel.</p>
             <div className="heroActions">
               <Link href="/contact" className="publicPrimary">Demander une démonstration</Link>
-              <Link href="/tarifs" className="publicSecondary">Voir les tarifs</Link>
+              <Link href="/souscription" className="publicSecondary">Voir les tarifs</Link>
               <Link href="/connexion" className="textLink">Se connecter</Link>
             </div>
             <div className="heroTrust"><span><ShieldCheck size={17}/> Accès sécurisé</span><span><Archive size={17}/> Versioning</span><span><UsersRound size={17}/> Droits par rôle</span></div>
@@ -121,7 +121,7 @@ export default function HomePage() {
 
       <section className="section">
         <div className="publicContainer">
-          <div className="sectionHead"><div><span className="eyebrow">Formules</span><h2>Choisissez votre niveau d’accompagnement</h2></div><Link href="/tarifs" className="textLink">Voir tous les tarifs →</Link></div>
+          <div className="sectionHead"><div><span className="eyebrow">Formules</span><h2>Choisissez votre niveau d’accompagnement</h2></div><Link href="/souscription" className="textLink">Voir tous les tarifs →</Link></div>
           <div className="pricingGrid compactPricing">{displayPlans.map((plan:any)=><article key={plan.id || plan.name} className={`priceCard ${plan.isHighlighted?'featured':''}`}>{plan.badge&&<span className="planBadge">{plan.badge}</span>}<div className="priceName">{plan.name}</div><p>{plan.subtitle}</p><div className="priceAmount">{plan.priceLabel || 'Sur devis'}</div><ul className="priceList">{(Array.isArray(plan.features)?plan.features:[]).slice(0,3).map((f:string)=><li key={f}>{f}</li>)}</ul><Link href="/contact" className={plan.isHighlighted?'publicPrimary':'publicSecondary'}>Demander une offre</Link></article>)}</div>
         </div>
       </section>
