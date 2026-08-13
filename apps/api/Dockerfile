@@ -1,11 +1,11 @@
 FROM debian:bookworm-slim AS libredwg-builder
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git ca-certificates build-essential autoconf automake libtool pkg-config \
+    git ca-certificates build-essential autoconf automake libtool pkg-config python3 \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 RUN git clone --depth 1 --branch 0.13.4 https://github.com/LibreDWG/libredwg.git . \
     && sh ./autogen.sh \
-    && ./configure --prefix=/opt/libredwg --disable-bindings --disable-shared --enable-release \
+    && ./configure --prefix=/opt/libredwg --disable-bindings --disable-shared --disable-docs --enable-release \
     && make -j2 \
     && make install
 
@@ -30,7 +30,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=libredwg-builder /opt/libredwg /opt/libredwg
 ENV PATH="/opt/libredwg/bin:${PATH}"
-ENV LD_LIBRARY_PATH="/opt/libredwg/lib:${LD_LIBRARY_PATH}"
+ENV LD_LIBRARY_PATH=/opt/libredwg/lib
 ENV NODE_ENV=production
 ENV HOME=/tmp/coffria-home
 COPY --from=build /app/node_modules ./node_modules
