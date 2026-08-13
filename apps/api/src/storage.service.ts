@@ -29,32 +29,17 @@ export class StorageService {
   });
 
   uploadUrl(key: string, mime: string) {
-    return getSignedUrl(this.s3, new PutObjectCommand({
-      Bucket: this.bucket,
-      Key: key,
-      ContentType: mime,
-      ServerSideEncryption: 'AES256',
-    }), { expiresIn: this.ttl });
+    return getSignedUrl(this.s3, new PutObjectCommand({ Bucket: this.bucket, Key: key, ContentType: mime, ServerSideEncryption: 'AES256' }), { expiresIn: this.ttl });
   }
 
   async createMultipart(key: string, mime: string) {
-    const result = await this.s3.send(new CreateMultipartUploadCommand({
-      Bucket: this.bucket,
-      Key: key,
-      ContentType: mime,
-      ServerSideEncryption: 'AES256',
-    }));
+    const result = await this.s3.send(new CreateMultipartUploadCommand({ Bucket: this.bucket, Key: key, ContentType: mime, ServerSideEncryption: 'AES256' }));
     if (!result.UploadId) throw new Error('Impossible de démarrer l’import multipart');
     return result.UploadId;
   }
 
   multipartPartUrl(key: string, uploadId: string, partNumber: number) {
-    return getSignedUrl(this.s3, new UploadPartCommand({
-      Bucket: this.bucket,
-      Key: key,
-      UploadId: uploadId,
-      PartNumber: partNumber,
-    }), { expiresIn: this.ttl });
+    return getSignedUrl(this.s3, new UploadPartCommand({ Bucket: this.bucket, Key: key, UploadId: uploadId, PartNumber: partNumber }), { expiresIn: this.ttl });
   }
 
   completeMultipart(key: string, uploadId: string, parts: Array<{ partNumber: number; etag: string }>) {
@@ -62,28 +47,33 @@ export class StorageService {
       Bucket: this.bucket,
       Key: key,
       UploadId: uploadId,
-      MultipartUpload: {
-        Parts: parts
-          .sort((a, b) => a.partNumber - b.partNumber)
-          .map((part) => ({ PartNumber: part.partNumber, ETag: part.etag })),
-      },
+      MultipartUpload: { Parts: parts.sort((a, b) => a.partNumber - b.partNumber).map((part) => ({ PartNumber: part.partNumber, ETag: part.etag })) },
     }));
   }
 
   abortMultipart(key: string, uploadId: string) {
-    return this.s3.send(new AbortMultipartUploadCommand({
-      Bucket: this.bucket,
-      Key: key,
-      UploadId: uploadId,
-    }));
+    return this.s3.send(new AbortMultipartUploadCommand({ Bucket: this.bucket, Key: key, UploadId: uploadId }));
   }
 
   downloadUrl(key: string, disposition = 'attachment') {
-    return getSignedUrl(this.s3, new GetObjectCommand({
+    return getSignedUrl(this.s3, new GetObjectCommand({ Bucket: this.bucket, Key: key, ResponseContentDisposition: disposition }), { expiresIn: this.ttl });
+  }
+
+  async readBuffer(key: string): Promise<Buffer> {
+    const result = await this.s3.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
+    if (!result.Body) throw new Error('Objet S3 vide');
+    const bytes = await result.Body.transformToByteArray();
+    return Buffer.from(bytes);
+  }
+
+  putBuffer(key: string, body: Buffer, mime = 'application/octet-stream') {
+    return this.s3.send(new PutObjectCommand({
       Bucket: this.bucket,
       Key: key,
-      ResponseContentDisposition: disposition,
-    }), { expiresIn: this.ttl });
+      Body: body,
+      ContentType: mime,
+      ServerSideEncryption: 'AES256',
+    }));
   }
 
   head(key: string) { return this.s3.send(new HeadObjectCommand({ Bucket: this.bucket, Key: key })); }
@@ -93,21 +83,13 @@ export class StorageService {
     let keyMarker: string | undefined;
     let versionIdMarker: string | undefined;
     do {
-      const page = await this.s3.send(new ListObjectVersionsCommand({
-        Bucket: this.bucket,
-        Prefix: prefix,
-        KeyMarker: keyMarker,
-        VersionIdMarker: versionIdMarker,
-      }));
+      const page = await this.s3.send(new ListObjectVersionsCommand({ Bucket: this.bucket, Prefix: prefix, KeyMarker: keyMarker, VersionIdMarker: versionIdMarker }));
       const objects = [
         ...(page.Versions || []).map((v) => ({ Key: v.Key!, VersionId: v.VersionId })),
         ...(page.DeleteMarkers || []).map((v) => ({ Key: v.Key!, VersionId: v.VersionId })),
       ];
       for (let i = 0; i < objects.length; i += 1000) {
-        await this.s3.send(new DeleteObjectsCommand({
-          Bucket: this.bucket,
-          Delete: { Objects: objects.slice(i, i + 1000), Quiet: true },
-        }));
+        await this.s3.send(new DeleteObjectsCommand({ Bucket: this.bucket, Delete: { Objects: objects.slice(i, i + 1000), Quiet: true } }));
       }
       keyMarker = page.IsTruncated ? page.NextKeyMarker : undefined;
       versionIdMarker = page.IsTruncated ? page.NextVersionIdMarker : undefined;
