@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Bot, Building2, FileSignature, Folder, LayoutDashboard, LogOut, Megaphone, Settings, ShieldCheck, Trash2, Users, UsersRound } from 'lucide-react';
+import { Bot, Building2, FileSignature, FileText, Folder, LayoutDashboard, LogOut, Megaphone, Settings, ShieldCheck, Trash2, Users, UsersRound } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../lib/api';
 
@@ -31,9 +31,15 @@ export function AppShell({ title, children }: { title: string; children: React.R
     setUser(current);
     if (current.role !== 'SUPER_ADMIN' && current.tenantId) {
       api('/signature-subscription').then((subscription) => {
-        const refreshed = { ...current, signatureEnabled: Boolean(subscription.signatureEnabled) };
+        const refreshed = {
+          ...current,
+          signatureEnabled: Boolean(subscription.signatureEnabled),
+          signatureUsageLimit: subscription.signatureUsageLimit ?? null,
+          signatureUsageUsed: Number(subscription.signatureUsageUsed || 0),
+        };
         setUser(refreshed);
         localStorage.setItem('coffria_user', JSON.stringify(refreshed));
+        window.dispatchEvent(new CustomEvent('coffria-subscription-updated', { detail: refreshed }));
       }).catch(() => undefined);
     }
   }, [router]);
@@ -43,6 +49,7 @@ export function AppShell({ title, children }: { title: string; children: React.R
       return [
         { href: '/admin/tenants', label: 'Entreprises clientes', icon: Building2 },
         { href: '/admin/marketing', label: 'Vitrine & Marketing', icon: Megaphone },
+        { href: '/admin/conditions', label: 'Conditions de vente', icon: FileText },
         { href: '/admin/superadmins', label: 'Super Admins', icon: ShieldCheck },
         { href: '/settings', label: 'Mon compte', icon: Settings },
       ];
