@@ -33,6 +33,23 @@ enum DocumentStatus {
   TRASHED
 }
 
+enum SignatureRequestStatus {
+  DRAFT
+  PENDING
+  PARTIALLY_SIGNED
+  COMPLETED
+  REFUSED
+  EXPIRED
+  CANCELLED
+}
+
+enum SignatureRecipientStatus {
+  PENDING
+  VIEWED
+  SIGNED
+  REFUSED
+}
+
 model Tenant {
   id                String   @id @default(uuid())
   name              String
@@ -45,12 +62,14 @@ model Tenant {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  users       User[]
-  folders     Folder[]
-  documents   Document[]
-  invitations Invitation[]
-  auditLogs   AuditLog[]
-  groups      Group[]
+  users             User[]
+  folders           Folder[]
+  documents         Document[]
+  invitations       Invitation[]
+  auditLogs         AuditLog[]
+  groups            Group[]
+  signatureRequests SignatureRequest[]
+  archiveChunks     ArchiveChunk[]
 }
 
 model User {
@@ -66,12 +85,13 @@ model User {
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
-  foldersCreated Folder[]     @relation("FolderCreator")
-  docsCreated    Document[]   @relation("DocumentCreator")
-  invitations    Invitation[] @relation("InvitationCreator")
-  auditLogs      AuditLog[]
-  groupMemberships GroupMember[]
-  folderAccesses FolderUserAccess[]
+  foldersCreated      Folder[]            @relation("FolderCreator")
+  docsCreated         Document[]          @relation("DocumentCreator")
+  invitations         Invitation[]        @relation("InvitationCreator")
+  auditLogs           AuditLog[]
+  groupMemberships    GroupMember[]
+  folderAccesses      FolderUserAccess[]
+  signatureRequests   SignatureRequest[]  @relation("SignatureRequestCreator")
 }
 
 model Folder {
@@ -89,8 +109,8 @@ model Folder {
   deletedAt   DateTime?
   visibility  FolderVisibility @default(COMPANY)
 
-  documents Document[]
-  userAccesses FolderUserAccess[]
+  documents     Document[]
+  userAccesses  FolderUserAccess[]
   groupAccesses FolderGroupAccess[]
 
   @@index([tenantId, parentId, deletedAt])
@@ -165,8 +185,74 @@ model Document {
   updatedAt       DateTime       @updatedAt
   deletedAt       DateTime?
 
+  archiveChunks           ArchiveChunk[]
+  signatureSourceRequests SignatureRequest[] @relation("SignatureSourceDocument")
+  signatureFinalRequests  SignatureRequest[] @relation("SignatureFinalDocument")
+
   @@index([tenantId, folderId, status, deletedAt])
   @@index([tenantId, name])
+}
+
+model ArchiveChunk {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  page       Int?
+  position   Int
+  content    String
+  embedding  Json?
+  createdAt  DateTime @default(now())
+
+  @@index([tenantId, documentId])
+  @@index([tenantId, position])
+}
+
+model SignatureRequest {
+  id                String                 @id @default(uuid())
+  tenantId          String
+  tenant            Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sourceDocumentId  String
+  sourceDocument    Document               @relation("SignatureSourceDocument", fields: [sourceDocumentId], references: [id], onDelete: Cascade)
+  finalDocumentId   String?
+  finalDocument     Document?              @relation("SignatureFinalDocument", fields: [finalDocumentId], references: [id], onDelete: SetNull)
+  createdById       String
+  createdBy         User                   @relation("SignatureRequestCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  title             String
+  message           String?
+  status            SignatureRequestStatus @default(DRAFT)
+  currentStorageKey String
+  expiresAt         DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  recipients        SignatureRecipient[]
+
+  @@index([tenantId, status, createdAt])
+}
+
+model SignatureRecipient {
+  id          String                   @id @default(uuid())
+  requestId   String
+  request     SignatureRequest         @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  name        String
+  email       String
+  order       Int
+  tokenHash   String                   @unique
+  status      SignatureRecipientStatus @default(PENDING)
+  viewedAt    DateTime?
+  signedAt    DateTime?
+  refusedAt   DateTime?
+  ipAddress   String?
+  userAgent   String?
+  signatureText String?
+  evidence    Json                     @default("{}")
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+
+  @@unique([requestId, order])
+  @@index([requestId, status])
 }
 
 model Invitation {
