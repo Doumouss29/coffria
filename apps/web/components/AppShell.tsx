@@ -39,10 +39,22 @@ export function AppShell({ title, children }: { title: string; children: React.R
         };
         setUser(refreshed);
         localStorage.setItem('coffria_user', JSON.stringify(refreshed));
-        window.dispatchEvent(new CustomEvent('coffria-subscription-updated', { detail: refreshed }));
       }).catch(() => undefined);
     }
   }, [router]);
+
+  useEffect(() => {
+    if (user?.signatureEnabled !== false) return;
+    const hideDisabledSignatureActions = () => {
+      document.querySelectorAll('button').forEach((button) => {
+        if ((button.textContent || '').includes('Demander des signatures')) button.style.display = 'none';
+      });
+    };
+    hideDisabledSignatureActions();
+    const observer = new MutationObserver(hideDisabledSignatureActions);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [user?.signatureEnabled]);
 
   const links = useMemo(() => {
     if (user?.role === 'SUPER_ADMIN') {
@@ -59,6 +71,8 @@ export function AppShell({ title, children }: { title: string; children: React.R
     if (user?.role === 'EDITOR') return visible.filter((link) => !['/users'].includes(link.href));
     return visible.filter((link) => !['/users','/groups','/signatures'].includes(link.href));
   }, [user]);
+
+  const quotaReached = user?.signatureEnabled !== false && user?.signatureUsageLimit != null && Number(user.signatureUsageUsed || 0) >= Number(user.signatureUsageLimit);
 
   function logout() {
     localStorage.removeItem('coffria_token');
@@ -82,6 +96,7 @@ export function AppShell({ title, children }: { title: string; children: React.R
       </aside>
       <main className="main">
         <header className="top"><strong>{title}</strong><span className="muted">{user?.name || 'Utilisateur Coffria'}</span><button type="button" className="mobileLogout" onClick={logout} aria-label="Se déconnecter" title="Déconnexion"><LogOut size={18}/></button></header>
+        {quotaReached && pathname.startsWith('/signatures') && <div className="alert error subscriptionAlert">Quota de signatures atteint : {user.signatureUsageUsed} / {user.signatureUsageLimit}. Contactez votre administrateur pour augmenter ou réinitialiser le quota.</div>}
         {children}
       </main>
     </div>
