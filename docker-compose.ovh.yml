@@ -14,6 +14,20 @@ services:
     networks:
       - coffria_internal
 
+  coffria-ollama:
+    image: ollama/ollama:0.11.4
+    container_name: coffria-ollama
+    restart: unless-stopped
+    profiles: ["ai"]
+    volumes:
+      - coffria_ollama_data:/root/.ollama
+    expose:
+      - "11434"
+    mem_limit: 1800m
+    cpus: 1.5
+    networks:
+      - coffria_internal
+
   coffria-api:
     build:
       context: ./apps/api
@@ -24,6 +38,9 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: ${REDIS_URL:-redis://coffria-redis:6379}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://coffria-ollama:11434}
+      OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL:-qwen2.5:1.5b}
+      OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-nomic-embed-text}
       API_PORT: 4000
     depends_on:
       coffria-redis:
@@ -71,6 +88,7 @@ services:
 
 volumes:
   coffria_redis_data:
+  coffria_ollama_data:
 
 networks:
   proxy:
