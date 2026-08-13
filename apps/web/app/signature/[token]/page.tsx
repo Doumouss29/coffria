@@ -111,7 +111,7 @@ export default function PublicSignaturePage(){
     if(!confirm(`Confirmer la signature de la page ${pageNumber} ? Le tracé visible sera intégré exactement à cet emplacement dans le PDF.`))return;
     setBusy(true);
     try{
-      await publicApi(`/signatures/public/${encodeURIComponent(token)}/sign`,{method:'POST',body:JSON.stringify({signatureText:data.recipient.name,signatureImage:cropSignature(),signatureOverlay:overlayImage(),pageNumber,position:'direct-page'})});
+      await publicApi(`/signatures/public/${encodeURIComponent(token)}/sign-direct`,{method:'POST',body:JSON.stringify({signatureText:data.recipient.name,signatureImage:cropSignature(),signatureOverlay:overlayImage(),pageNumber})});
       setDone(true);
     }catch(e:any){setError(e.message)}finally{setBusy(false)}
   }
