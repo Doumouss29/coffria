@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PrismaService } from './prisma.service';
@@ -24,6 +25,8 @@ import { BulkController } from './bulk.controller';
 import { SignaturesController } from './signatures.controller';
 import { DirectSignatureController } from './direct-signature.controller';
 import { SignatureSubscriptionController } from './signature-subscription.controller';
+import { SignatureWorkspaceController } from './signature-workspace.controller';
+import { SignatureEntitlementInterceptor } from './signature-entitlement.interceptor';
 import { AiController } from './ai.controller';
 import { ArchiveAiService } from './archive-ai.service';
 import { DocumentConversionService } from './document-conversion.service';
@@ -58,6 +61,7 @@ import { UploadCleanupService } from './upload-cleanup.service';
     SignaturesController,
     DirectSignatureController,
     SignatureSubscriptionController,
+    SignatureWorkspaceController,
     AiController,
   ],
   providers: [
@@ -70,6 +74,8 @@ import { UploadCleanupService } from './upload-cleanup.service';
     DocumentConversionService,
     CadConversionService,
     UploadCleanupService,
+    SignatureEntitlementInterceptor,
+    { provide: APP_INTERCEPTOR, useExisting: SignatureEntitlementInterceptor },
   ],
 })
 export class AppModule {}
