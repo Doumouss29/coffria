@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, ForbiddenException, Get, NotFoundException, Param, Post, Req, UseGuards } from '@nestjs/common';
-import { IsArray, IsDateString, IsEmail, IsOptional, IsString, MinLength, ValidateNested } from 'class-validator';
+import { IsArray, IsDateString, IsEmail, IsInt, IsOptional, IsString, Min, MinLength, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { createHash, randomBytes, randomUUID } from 'crypto';
 import * as nodemailer from 'nodemailer';
@@ -19,7 +19,12 @@ class CreateSignatureDto {
   @IsOptional() @IsDateString() expiresAt?: string;
   @IsArray() @ValidateNested({ each: true }) @Type(() => RecipientDto) recipients!: RecipientDto[];
 }
-class SignDto { @IsString() @MinLength(2) signatureText!: string; }
+class SignDto {
+  @IsString() @MinLength(2) signatureText!: string;
+  @IsString() @MinLength(20) signatureImage!: string;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) pageNumber?: number;
+  @IsOptional() @IsString() position?: string;
+}
 class RefuseDto { @IsOptional() @IsString() reason?: string; }
 
 @Controller('signatures')
@@ -146,7 +151,9 @@ export class SignaturesController {
     const previousPending = request.recipients.some((r: any) => r.order < recipient.order && r.status !== 'SIGNED');
     if (previousPending) return { waiting: true, recipient: { name: recipient.name, status: recipient.status }, request: { title: request.title, message: request.message, documentName: request.sourceDocument.name, status: request.status, recipients: request.recipients } };
     if (!recipient.viewedAt) await this.db.signatureRecipient.update({ where: { id: recipient.id }, data: { viewedAt: new Date(), status: recipient.status === 'PENDING' ? 'VIEWED' : recipient.status } });
-    return { waiting: false, recipient: { name: recipient.name, email: recipient.email, status: recipient.status }, request: { title: request.title, message: request.message, documentName: request.sourceDocument.name, status: request.status, recipients: request.recipients }, documentUrl: await this.storage.downloadUrl(request.currentStorageKey, 'inline') };
+    const currentPdf = await this.storage.readBuffer(request.currentStorageKey);
+    const pageCount = (await PDFDocument.load(currentPdf)).getPageCount();
+    return { waiting: false, recipient: { name: recipient.name, email: recipient.email, status: recipient.status }, request: { title: request.title, message: request.message, documentName: request.sourceDocument.name, status: request.status, recipients: request.recipients }, documentUrl: await this.storage.downloadUrl(request.currentStorageKey, 'inline'), pageCount };
   }
 
   @Post('public/:token/sign')
@@ -159,23 +166,50 @@ export class SignaturesController {
     if (request.expiresAt && request.expiresAt < new Date()) throw new BadRequestException('Cette demande a expiré.');
     if (request.recipients.some((r: any) => r.order < recipient.order && r.status !== 'SIGNED')) throw new BadRequestException('Le document attend encore une signature précédente.');
 
+    const imageMatch = dto.signatureImage.match(/^data:image\/png;base64,([A-Za-z0-9+/=]+)$/);
+    if (!imageMatch) throw new BadRequestException('La signature graphique doit être une image PNG valide.');
+    const signatureBytes = Buffer.from(imageMatch[1], 'base64');
+    if (!signatureBytes.length || signatureBytes.length > 250_000) throw new BadRequestException('La signature graphique est vide ou trop volumineuse.');
+    const allowedPositions = ['top-left','top-center','top-right','middle-left','middle-center','middle-right','bottom-left','bottom-center','bottom-right'];
+    const position = allowedPositions.includes(dto.position || '') ? dto.position! : 'bottom-right';
+
     const signedAt = new Date();
     const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim();
     const userAgent = String(req.headers['user-agent'] || '');
     const input = await this.storage.readBuffer(request.currentStorageKey);
     const pdf = await PDFDocument.load(input);
+    const pages = pdf.getPages();
+    if (!pages.length) throw new BadRequestException('Le PDF ne contient aucune page.');
+    const pageNumber = Math.min(Math.max(dto.pageNumber || pages.length, 1), pages.length);
+    const targetPage = pages[pageNumber - 1];
+    const signaturePng = await pdf.embedPng(signatureBytes);
+    const { width: pageWidth, height: pageHeight } = targetPage.getSize();
+    const rawSize = signaturePng.scale(1);
+    const signatureWidth = Math.min(165, Math.max(110, pageWidth * 0.25));
+    const signatureHeight = Math.min(72, signatureWidth * (rawSize.height / rawSize.width));
+    const marginX = 34;
+    const marginY = 34;
+    const horizontal = position.split('-')[1];
+    const vertical = position.split('-')[0];
+    const x = horizontal === 'left' ? marginX : horizontal === 'center' ? (pageWidth - signatureWidth) / 2 : pageWidth - signatureWidth - marginX;
+    const y = vertical === 'top' ? pageHeight - signatureHeight - marginY : vertical === 'middle' ? (pageHeight - signatureHeight) / 2 : marginY;
+    targetPage.drawImage(signaturePng, { x, y, width: signatureWidth, height: signatureHeight });
+
     const page = pdf.addPage([595.28, 841.89]);
     const font = await pdf.embedFont(StandardFonts.Helvetica);
     const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
     page.drawText('COFFRIA — PREUVE DE SIGNATURE', { x: 48, y: 770, size: 18, font: bold, color: rgb(0.08, 0.13, 0.24) });
     page.drawText(`Circuit : ${request.title}`, { x: 48, y: 735, size: 11, font, color: rgb(0.25, 0.3, 0.4) });
-    page.drawRectangle({ x: 48, y: 570, width: 499, height: 125, color: rgb(0.97, 0.98, 1), borderColor: rgb(0.82, 0.85, 0.9), borderWidth: 1 });
-    page.drawText(`Signature Coffria #${recipient.order}`, { x: 68, y: 660, size: 13, font: bold, color: rgb(0.08, 0.13, 0.24) });
-    page.drawText(`Signataire : ${dto.signatureText.trim()}`, { x: 68, y: 630, size: 12, font: bold, color: rgb(0.82, 0.43, 0.16) });
-    page.drawText(`Identité déclarée : ${recipient.name} <${recipient.email}>`, { x: 68, y: 605, size: 9, font });
-    page.drawText(`Date UTC : ${signedAt.toISOString()}`, { x: 68, y: 585, size: 9, font });
-    page.drawText(`Adresse IP : ${ip || 'non disponible'}`, { x: 48, y: 525, size: 8, font, color: rgb(0.35, 0.39, 0.48) });
-    page.drawText('Le document original précède cette page de preuve. Chaque signature ajoute une page de traçabilité sans masquer le contenu existant.', { x: 48, y: 485, size: 8, font, color: rgb(0.35, 0.39, 0.48), maxWidth: 490, lineHeight: 12 });
+    page.drawRectangle({ x: 48, y: 545, width: 499, height: 150, color: rgb(0.97, 0.98, 1), borderColor: rgb(0.82, 0.85, 0.9), borderWidth: 1 });
+    page.drawText(`Signature Coffria #${recipient.order}`, { x: 68, y: 665, size: 13, font: bold, color: rgb(0.08, 0.13, 0.24) });
+    const proofWidth = 150;
+    const proofHeight = Math.min(58, proofWidth * (rawSize.height / rawSize.width));
+    page.drawImage(signaturePng, { x: 68, y: 595, width: proofWidth, height: proofHeight });
+    page.drawText(`Identité déclarée : ${recipient.name} <${recipient.email}>`, { x: 68, y: 575, size: 9, font });
+    page.drawText(`Date UTC : ${signedAt.toISOString()}`, { x: 68, y: 558, size: 9, font });
+    page.drawText(`Signature visible : page ${pageNumber}, position ${position}`, { x: 48, y: 515, size: 8, font, color: rgb(0.35, 0.39, 0.48) });
+    page.drawText(`Adresse IP : ${ip || 'non disponible'}`, { x: 48, y: 495, size: 8, font, color: rgb(0.35, 0.39, 0.48) });
+    page.drawText('Le document signé précède cette page de preuve. La signature manuscrite est intégrée dans le PDF et les éléments de traçabilité sont conservés.', { x: 48, y: 455, size: 8, font, color: rgb(0.35, 0.39, 0.48), maxWidth: 490, lineHeight: 12 });
     const bytes = Buffer.from(await pdf.save());
     const digest = createHash('sha256').update(bytes).digest('hex');
     const signedKey = `tenants/${request.tenantId}/signatures/${request.id}/${recipient.order}-${randomUUID()}.pdf`;
@@ -198,9 +232,9 @@ export class SignaturesController {
     }
 
     await this.db.$transaction([
-      this.db.signatureRecipient.update({ where: { id: recipient.id }, data: { status: 'SIGNED', signedAt, signatureText: dto.signatureText.trim(), ipAddress: ip || null, userAgent: userAgent || null, evidence: { tokenHash: recipient.tokenHash, signedAt: signedAt.toISOString(), sha256: digest } } }),
+      this.db.signatureRecipient.update({ where: { id: recipient.id }, data: { status: 'SIGNED', signedAt, signatureText: dto.signatureText.trim(), ipAddress: ip || null, userAgent: userAgent || null, evidence: { tokenHash: recipient.tokenHash, signedAt: signedAt.toISOString(), sha256: digest, signatureType: 'DRAWN_PNG', pageNumber, position } } }),
       this.db.signatureRequest.update({ where: { id: request.id }, data: { currentStorageKey: signedKey, status: isFinal ? 'COMPLETED' : 'PARTIALLY_SIGNED', completedAt: isFinal ? signedAt : null, finalDocumentId: finalDocumentId || null } }),
-      this.db.auditLog.create({ data: { tenantId: request.tenantId, action: 'DOCUMENT_SIGNED', entityType: 'SignatureRequest', entityId: request.id, ipAddress: ip || null, userAgent: userAgent || null, details: { recipientEmail: recipient.email, order: recipient.order, sha256: digest } } }),
+      this.db.auditLog.create({ data: { tenantId: request.tenantId, action: 'DOCUMENT_SIGNED', entityType: 'SignatureRequest', entityId: request.id, ipAddress: ip || null, userAgent: userAgent || null, details: { recipientEmail: recipient.email, order: recipient.order, sha256: digest, signatureType: 'DRAWN_PNG', pageNumber, position } } }),
     ]);
 
     if (next) {
