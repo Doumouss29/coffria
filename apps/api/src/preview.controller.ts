@@ -3,7 +3,6 @@ import { JwtGuard } from './jwt.guard';
 import { PrismaService } from './prisma.service';
 import { StorageService } from './storage.service';
 import { DocumentConversionService } from './document-conversion.service';
-import { CadConversionService } from './cad-conversion.service';
 
 @Controller('preview')
 @UseGuards(JwtGuard)
@@ -12,7 +11,6 @@ export class PreviewController {
     private db: PrismaService,
     private storage: StorageService,
     private conversion: DocumentConversionService,
-    private cad: CadConversionService,
   ) {}
 
   private tenant(req: any) {
@@ -44,16 +42,6 @@ export class PreviewController {
 
     if (ext === 'pdf' || doc.mimeType === 'application/pdf') return { ...common, kind: 'pdf', url: await this.storage.downloadUrl(doc.storageKey, 'inline') };
     if (doc.mimeType.startsWith('image/') || ['png','jpg','jpeg','gif','webp','svg','bmp'].includes(ext)) return { ...common, kind: 'image', url: await this.storage.downloadUrl(doc.storageKey, 'inline') };
-    if (ext === 'dxf') return { ...common, kind: 'dxf', url: await this.storage.downloadUrl(doc.storageKey, 'inline') };
-    if (ext === 'dwg') {
-      try {
-        const dxfKey = await this.cad.dwgToDxf(doc);
-        return { ...common, kind: 'dxf', sourceKind: 'dwg', url: await this.storage.downloadUrl(dxfKey, 'inline'), downloadUrl: await this.storage.downloadUrl(doc.storageKey, 'attachment') };
-      } catch (error) {
-        console.error('DWG preview conversion error', error);
-        return { ...common, kind: 'dwg', url: await this.storage.downloadUrl(doc.storageKey, 'attachment'), message: 'Ce DWG n’a pas pu être converti pour la prévisualisation. Le fichier original reste disponible.' };
-      }
-    }
     if (['txt','csv','json','xml','md','log'].includes(ext)) {
       const buffer = await this.storage.readBuffer(doc.storageKey);
       return { ...common, kind: 'text', text: buffer.subarray(0, 5 * 1024 * 1024).toString('utf8') };
