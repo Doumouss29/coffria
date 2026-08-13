@@ -61,7 +61,9 @@ export default function TenantsPage() {
   async function saveAdmin(e: React.FormEvent) {
     e.preventDefault();
     try {
-      const body: any = { ...adminForm };
+      const body: any = editingAdmin
+        ? { name: adminForm.name, email: adminForm.email, password: adminForm.password, status: adminForm.status }
+        : { name: adminForm.name, email: adminForm.email, password: adminForm.password };
       if (editingAdmin && !body.password) delete body.password;
       await api(editingAdmin ? `/tenants/${adminTenant.id}/admins/${editingAdmin.id}` : `/tenants/${adminTenant.id}/admins`, { method: editingAdmin ? 'PATCH' : 'POST', body: JSON.stringify(body) });
       await load();
