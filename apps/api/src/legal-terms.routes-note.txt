@@ -1,1 +1,0 @@
-Le contrôleur LegalTermsController doit être enregistré dans AppModule.
