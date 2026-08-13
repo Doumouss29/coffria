@@ -45,7 +45,10 @@ export class SignaturesController {
     };
   }
   private hash(token: string) { return createHash('sha256').update(token).digest('hex'); }
-  private appUrl() { return (process.env.APP_URL || 'https://coffria.ci').replace(/\/$/, ''); }
+  private appUrl() {
+    const configured = process.env.PUBLIC_APP_URL || process.env.APP_URL?.split(',')[0] || 'https://coffria.ci';
+    return configured.trim().replace(/\/$/, '');
+  }
   private escape(value: string) { return value.replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c] || c)); }
 
   private async sendInvitation(email: string, name: string, title: string, token: string, message?: string | null) {
