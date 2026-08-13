@@ -1,0 +1,102 @@
+import { BadRequestException, Body, Controller, ForbiddenException, Post, Req, UseGuards } from '@nestjs/common';
+import { IsArray, IsOptional, IsString } from 'class-validator';
+import { JwtGuard } from './jwt.guard';
+import { PrismaService } from './prisma.service';
+import { StorageService } from './storage.service';
+
+class SelectionDto {
+  @IsArray() @IsString({ each: true }) documentIds!: string[];
+  @IsArray() @IsString({ each: true }) folderIds!: string[];
+}
+class MoveDto extends SelectionDto { @IsOptional() @IsString() targetFolderId?: string; }
+
+@Controller('bulk')
+@UseGuards(JwtGuard)
+export class BulkController {
+  constructor(private db: PrismaService, private storage: StorageService) {}
+
+  private tenant(req: any) {
+    if (!req.user.tenantId) throw new ForbiddenException('Organisation requise');
+    return req.user.tenantId as string;
+  }
+  private canWrite(req: any) { if (req.user.role === 'VIEWER') throw new ForbiddenException('Action interdite'); }
+  private canAdmin(req: any) { if (req.user.role !== 'TENANT_ADMIN') throw new ForbiddenException('Action réservée à l’administrateur'); }
+  private ids(dto: SelectionDto) { return { documentIds: [...new Set(dto.documentIds || [])], folderIds: [...new Set(dto.folderIds || [])] }; }
+
+  private async descendants(tenantId: string, rootIds: string[]) {
+    const all = new Set(rootIds);
+    let frontier = [...rootIds];
+    while (frontier.length) {
+      const children = await this.db.folder.findMany({ where: { tenantId, parentId: { in: frontier } }, select: { id: true } });
+      frontier = children.map((x) => x.id).filter((id) => !all.has(id));
+      frontier.forEach((id) => all.add(id));
+    }
+    return [...all];
+  }
+
+  @Post('trash')
+  async trash(@Req() req: any, @Body() dto: SelectionDto) {
+    this.canWrite(req);
+    const tenantId = this.tenant(req);
+    const { documentIds, folderIds } = this.ids(dto);
+    if (!documentIds.length && !folderIds.length) throw new BadRequestException('Aucun élément sélectionné');
+    const folderTree = await this.descendants(tenantId, folderIds);
+    const now = new Date();
+    await this.db.$transaction([
+      this.db.folder.updateMany({ where: { tenantId, id: { in: folderTree }, deletedAt: null }, data: { deletedAt: now } }),
+      this.db.document.updateMany({ where: { tenantId, OR: [{ id: { in: documentIds } }, { folderId: { in: folderTree } }], deletedAt: null }, data: { deletedAt: now, status: 'TRASHED' } }),
+    ]);
+    return { success: true, folders: folderTree.length, documents: documentIds.length };
+  }
+
+  @Post('move')
+  async move(@Req() req: any, @Body() dto: MoveDto) {
+    this.canWrite(req);
+    const tenantId = this.tenant(req);
+    const { documentIds, folderIds } = this.ids(dto);
+    const targetFolderId = dto.targetFolderId || null;
+    if (targetFolderId) {
+      const target = await this.db.folder.findFirst({ where: { id: targetFolderId, tenantId, deletedAt: null } });
+      if (!target) throw new BadRequestException('Dossier de destination introuvable');
+    }
+    if (folderIds.includes(targetFolderId || '')) throw new BadRequestException('Impossible de déplacer un dossier dans lui-même');
+    for (const folderId of folderIds) {
+      const tree = await this.descendants(tenantId, [folderId]);
+      if (targetFolderId && tree.includes(targetFolderId)) throw new BadRequestException('Impossible de déplacer un dossier dans un de ses sous-dossiers');
+    }
+    await this.db.$transaction([
+      this.db.document.updateMany({ where: { tenantId, id: { in: documentIds }, deletedAt: null }, data: { folderId: targetFolderId as any } }),
+      this.db.folder.updateMany({ where: { tenantId, id: { in: folderIds }, deletedAt: null }, data: { parentId: targetFolderId } }),
+    ]);
+    return { success: true };
+  }
+
+  @Post('trash/restore')
+  async restore(@Req() req: any, @Body() dto: SelectionDto) {
+    this.canAdmin(req);
+    const tenantId = this.tenant(req);
+    const { documentIds, folderIds } = this.ids(dto);
+    const folderTree = await this.descendants(tenantId, folderIds);
+    await this.db.$transaction([
+      this.db.folder.updateMany({ where: { tenantId, id: { in: folderTree }, deletedAt: { not: null } }, data: { deletedAt: null } }),
+      this.db.document.updateMany({ where: { tenantId, OR: [{ id: { in: documentIds } }, { folderId: { in: folderTree } }], deletedAt: { not: null } }, data: { deletedAt: null, status: 'ACTIVE' } }),
+    ]);
+    return { success: true };
+  }
+
+  @Post('trash/purge')
+  async purge(@Req() req: any, @Body() dto: SelectionDto) {
+    this.canAdmin(req);
+    const tenantId = this.tenant(req);
+    const { documentIds, folderIds } = this.ids(dto);
+    const folderTree = await this.descendants(tenantId, folderIds);
+    const docs = await this.db.document.findMany({ where: { tenantId, deletedAt: { not: null }, OR: [{ id: { in: documentIds } }, { folderId: { in: folderTree } }] }, select: { id: true, storageKey: true } });
+    for (const doc of docs) await this.storage.delete(doc.storageKey).catch(() => undefined);
+    await this.db.$transaction(async (tx) => {
+      if (docs.length) await tx.document.deleteMany({ where: { id: { in: docs.map((d) => d.id) } } });
+      // Supprimer du plus profond au plus haut pour respecter l'arborescence.
+      for (const id of [...folderTree].reverse()) await tx.folder.deleteMany({ where: { id, tenantId, deletedAt: { not: null } } });
+    });
+    return { success: true, purgedDocuments: docs.length, purgedFolders: folderTree.length };
+  }
+}
