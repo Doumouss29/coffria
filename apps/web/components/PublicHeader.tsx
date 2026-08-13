@@ -11,7 +11,7 @@ export default function PublicHeader() {
         <nav className="publicNav">
           <Link href="/">Accueil</Link>
           <Link href="/offres">Offres</Link>
-          <Link href="/tarifs">Tarifs</Link>
+          <Link href="/souscription">Tarifs</Link>
           <Link href="/contact">Contact</Link>
           <Link href="/connexion" className="publicLoginButton">Connexion</Link>
         </nav>
