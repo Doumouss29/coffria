@@ -11,7 +11,8 @@ export default function PublicFooter() {
         <div>
           <strong>Navigation</strong>
           <Link href="/">Accueil</Link>
-          <Link href="/tarifs">Tarifs</Link>
+          <Link href="/souscription">Tarifs</Link>
+          <Link href="/conditions">Conditions</Link>
           <Link href="/contact">Contact</Link>
           <Link href="/connexion">Connexion</Link>
         </div>
