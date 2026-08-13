@@ -1,19 +1,21 @@
 'use client';
 
 import Link from 'next/link';
-import { Check, Gift } from 'lucide-react';
+import { Check, Gift, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../lib/api';
 
 const fallbackPlans = [
-  { id:'essentiel', slug:'essentiel', name:'ESSENTIEL', subtitle:'La référence pour numériser et sécuriser vos archives prioritaires.', monthlyPriceCents:3500000, yearlyPriceCents:38500000, storageGb:100, features:['100 Go de stockage documentaire','Recherche intelligente et indexation documentaire','Empreinte SHA-256 et traçabilité','Gestion des dossiers, versions et corbeille','Accès ordinateur, tablette et smartphone','Support standard','Signature graphique : non incluse','Assistant IA : non inclus'], isHighlighted:false },
-  { id:'pro', slug:'pro', name:'PRO', subtitle:'La formule tout-en-un pour accélérer vos processus documentaires et de validation.', monthlyPriceCents:9500000, yearlyPriceCents:104500000, storageGb:500, features:['Tout le Pack ESSENTIEL','500 Go de stockage documentaire','Signature graphique par e-mail','Dossier de preuve : e-mail, date, heure, IP et traçabilité','Gestion avancée des droits et groupes','Fonctions IA de masquage/anonymisation selon disponibilité','Support prioritaire'], badge:'Bestseller', isHighlighted:true },
-  { id:'corporate', slug:'corporate', name:'CORPORATE', subtitle:'L’expérience sur-mesure pour les grandes organisations et les volumes importants.', monthlyPriceCents:18000000, yearlyPriceCents:180000000, storageGb:1000, features:['Tout le Pack PRO','1 To de stockage documentaire','Signature graphique multi-signataires et workflows','Quota de signature configurable ou illimité selon contrat','Assistant IA Chat avec vos documents','Accès API et intégrations selon périmètre contractuel','Accompagnement et support dédiés'], badge:'Corporate', isHighlighted:false },
+  { id:'essentiel', slug:'essentiel', name:'ESSENTIEL', subtitle:'La référence pour numériser et sécuriser vos archives prioritaires.', monthlyPriceCents:3500000, yearlyPriceCents:38500000, storageGb:100, features:['100 Go de stockage documentaire','Recherche intelligente et indexation documentaire','Empreinte SHA-256 et traçabilité','Gestion des dossiers, versions et corbeille','Accès ordinateur, tablette et smartphone','Support standard','Signature graphique : non incluse'], isHighlighted:false },
+  { id:'pro', slug:'pro', name:'PRO', subtitle:'La formule tout-en-un pour accélérer vos processus documentaires et de validation.', monthlyPriceCents:9500000, yearlyPriceCents:104500000, storageGb:500, features:['Tout le Pack ESSENTIEL','500 Go de stockage documentaire','Signature graphique par e-mail','Dossier de preuve : e-mail, date, heure, IP et traçabilité','Gestion avancée des droits et groupes','Support prioritaire'], badge:'Bestseller', isHighlighted:true },
+  { id:'corporate', slug:'corporate', name:'CORPORATE', subtitle:'L’expérience sur-mesure pour les grandes organisations et les volumes importants.', monthlyPriceCents:18000000, yearlyPriceCents:180000000, storageGb:1000, features:['Tout le Pack PRO','1 To de stockage documentaire','Signature graphique multi-signataires et workflows','Quota de signature configurable ou illimité selon contrat','Accès API et intégrations selon périmètre contractuel','Accompagnement et support dédiés'], badge:'Corporate', isHighlighted:false },
 ];
 
 const allowedPlanSlugs = new Set(['essentiel','pro','corporate']);
 function fcfa(cents?:number|null){if(cents==null)return 'Sur devis';return `${Math.round(cents/100).toLocaleString('fr-FR')} FCFA HT`;}
 function freeMonths(plan:any){return String(plan.slug||plan.name).toLowerCase().includes('corporate')?2:1;}
+function withoutAi(features:any){return (Array.isArray(features)?features:[]).filter((item:any)=>!/(assistant\s*ia|fonctions?\s*ia|\bia\b)/i.test(String(item)));}
+function isExcludedFeature(item:string){return /non inclus(?:e|es)?\b/i.test(item);}
 
 export function SubscriptionPricing(){
   const[plans,setPlans]=useState<any[]>([]);
@@ -23,7 +25,7 @@ export function SubscriptionPricing(){
   const choiceRef=useRef<HTMLDivElement|null>(null);
 
   useEffect(()=>{
-    api('/marketing/public/plans').then((items:any[])=>setPlans(items.filter((plan:any)=>allowedPlanSlugs.has(String(plan.slug||'').toLowerCase())))).catch(()=>{});
+    api('/marketing/public/plans').then((items:any[])=>setPlans(items.filter((plan:any)=>allowedPlanSlugs.has(String(plan.slug||'').toLowerCase())).map((plan:any)=>({...plan,features:withoutAi(plan.features)})))).catch(()=>{});
     const params=new URLSearchParams(window.location.search);
     setSelectedSlug(params.get('plan')||'');
     setBilling(params.get('billing')==='yearly'?'yearly':'monthly');
@@ -54,7 +56,7 @@ export function SubscriptionPricing(){
         <div className="priceName">{plan.name}</div><p>{plan.subtitle}</p>
         <div className="priceAmount">{fcfa(plan.monthlyPriceCents)}<small> / mois</small></div>
         {plan.storageGb&&<div className="planMeta">{plan.storageGb>=1000?'1 To':`${plan.storageGb} Go`} de stockage</div>}
-        <ul className="priceList">{(Array.isArray(plan.features)?plan.features:[]).map((item:string)=><li key={item}><Check size={15}/>{item}</li>)}</ul>
+        <ul className="priceList" style={{listStyle:'none',paddingLeft:0}}>{withoutAi(plan.features).map((item:string)=>{const excluded=isExcludedFeature(item);return <li key={item}>{excluded?<X size={15} style={{color:'#b42318',flexShrink:0}}/>:<Check size={15} style={{color:'#18794e',flexShrink:0}}/>}{item}</li>})}</ul>
         <button type="button" onClick={()=>choose(plan)} className={plan.isHighlighted?'publicPrimary':'publicSecondary'}>{isSelected?'Pack sélectionné':'Choisir ce pack'}</button>
       </article>})}</div></div></section>
 
