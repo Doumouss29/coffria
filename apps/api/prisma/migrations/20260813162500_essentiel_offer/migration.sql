@@ -7,7 +7,7 @@ VALUES (
   'Offre du moment',
   'Démarrez avec 100 Go d’archivage documentaire sécurisé à 35 000 FCFA HT par mois. En paiement annuel, bénéficiez d’un mois offert, soit 385 000 FCFA HT par an.',
   'Choisir le Pack ESSENTIEL',
-  '/conditions?plan=essentiel&billing=monthly',
+  '/tarifs?plan=essentiel',
   'BOTH',
   NOW(),
   NULL,
