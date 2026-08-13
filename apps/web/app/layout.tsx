@@ -5,6 +5,7 @@ import './innovations.css';
 import './mobile-explorer.css';
 import './viewer-fixes.css';
 import './viewer-mobile.css';
+import './pricing-legal.css';
 
 export const metadata = {
   title: 'Coffria',
