@@ -4,6 +4,7 @@ import './marketing-v2.css';
 import './innovations.css';
 import './mobile-explorer.css';
 import './viewer-fixes.css';
+import './viewer-mobile.css';
 
 export const metadata = {
   title: 'Coffria',
