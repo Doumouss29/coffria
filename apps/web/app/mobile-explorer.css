@@ -1,0 +1,54 @@
+/* Explorateur mobile : conserver les colonnes de métadonnées accessibles par défilement horizontal. */
+@media(max-width:850px){
+  .tableCard{
+    overflow-x:auto!important;
+    overflow-y:visible!important;
+    -webkit-overflow-scrolling:touch;
+    position:relative;
+  }
+  .table{
+    min-width:820px;
+    width:100%;
+  }
+  .table th,.table td{
+    display:table-cell!important;
+    white-space:nowrap;
+  }
+  .table th:nth-child(2),.table td:nth-child(2){
+    min-width:250px;
+    white-space:normal;
+  }
+  .table th:nth-child(3),.table td:nth-child(3){min-width:95px}
+  .table th:nth-child(4),.table td:nth-child(4){min-width:100px}
+  .table th:nth-child(5),.table td:nth-child(5){min-width:165px}
+  .table th:nth-child(6),.table td:nth-child(6){min-width:150px}
+  .table th:last-child,.table td.actionCell{
+    display:table-cell!important;
+    position:sticky;
+    right:0;
+    z-index:3;
+    background:#fff;
+    box-shadow:-8px 0 12px -12px #14213d99;
+  }
+  .table th:last-child{
+    background:#f4f6f9;
+    font-size:13px;
+    width:78px;
+    min-width:78px;
+    text-align:center;
+    padding:13px 8px;
+  }
+  .table th:last-child::after{content:none!important}
+  .table td.actionCell{width:78px;min-width:78px}
+  .tableCard::after{
+    content:'Glissez horizontalement pour afficher Type, Taille, date et auteur';
+    display:block;
+    position:sticky;
+    left:0;
+    width:max-content;
+    max-width:calc(100vw - 36px);
+    margin:8px 10px 10px;
+    font-size:11px;
+    color:#7a8494;
+  }
+}
