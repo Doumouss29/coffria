@@ -19,6 +19,11 @@ import { SuperAdminsController } from './superadmins.controller';
 import { GroupsController } from './groups.controller';
 import { MarketingController } from './marketing.controller';
 import { ContactController } from './contact.controller';
+import { PreviewController } from './preview.controller';
+import { BulkController } from './bulk.controller';
+import { SignaturesController } from './signatures.controller';
+import { AiController } from './ai.controller';
+import { ArchiveAiService } from './archive-ai.service';
 import { UploadCleanupService } from './upload-cleanup.service';
 
 @Module({
@@ -44,7 +49,11 @@ import { UploadCleanupService } from './upload-cleanup.service';
     GroupsController,
     MarketingController,
     ContactController,
+    PreviewController,
+    BulkController,
+    SignaturesController,
+    AiController,
   ],
-  providers: [PrismaService, AuthService, JwtGuard, StorageService, SearchService, UploadCleanupService],
+  providers: [PrismaService, AuthService, JwtGuard, StorageService, SearchService, ArchiveAiService, UploadCleanupService],
 })
 export class AppModule {}
