@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { CheckCircle2, ChevronLeft, ChevronRight, Eraser, FileSignature, PenLine, ShieldCheck, XCircle } from 'lucide-react';
+import { CheckCircle2, ChevronLeft, ChevronRight, Eraser, FileSignature, PenLine, ShieldCheck, Stamp, XCircle } from 'lucide-react';
 import { FormEvent, PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import './signature.css';
@@ -10,6 +10,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.mi
 
 const API=process.env.NEXT_PUBLIC_API_URL;
 async function publicApi(path:string,init:RequestInit={}){const r=await fetch(`${API}${path}`,{...init,headers:{'Content-Type':'application/json',...(init.headers||{})}});const j=await r.json().catch(()=>({message:r.statusText}));if(!r.ok)throw new Error(j.message||'Erreur');return j;}
+async function accountApi(path:string,init:RequestInit={}){const token=typeof window!=='undefined'?localStorage.getItem('coffria_token'):null;if(!token)throw new Error('Non connecté');const r=await fetch(`${API}${path}`,{...init,headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`,...(init.headers||{})}});const j=await r.json().catch(()=>({message:r.statusText}));if(!r.ok)throw new Error(j.message||'Erreur');return j;}
 
 export default function PublicSignaturePage(){
   const params=useParams<{token:string}>();
@@ -23,6 +24,10 @@ export default function PublicSignaturePage(){
   const[pageCount,setPageCount]=useState(1);
   const[pdfReady,setPdfReady]=useState(false);
   const[rendering,setRendering]=useState(false);
+  const[savedSignature,setSavedSignature]=useState('');
+  const[accountMatches,setAccountMatches]=useState(false);
+  const[saveForLater,setSaveForLater]=useState(false);
+  const[stampMode,setStampMode]=useState(false);
   const pdfRef=useRef<any>(null);
   const pdfCanvasRef=useRef<HTMLCanvasElement|null>(null);
   const inkCanvasRef=useRef<HTMLCanvasElement|null>(null);
@@ -30,7 +35,16 @@ export default function PublicSignaturePage(){
 
   useEffect(()=>{
     publicApi(`/signatures/public/${encodeURIComponent(token)}`)
-      .then((value)=>{setData(value);setPageNumber(1);setPageCount(value.pageCount||1)})
+      .then(async(value)=>{
+        setData(value);setPageNumber(1);setPageCount(value.pageCount||1);
+        if(value?.waiting)return;
+        try{
+          const profile=await accountApi('/users/me/signature');
+          const matches=String(profile.email||'').toLowerCase()===String(value.recipient?.email||'').toLowerCase();
+          setAccountMatches(matches);
+          if(matches&&profile.saved&&profile.signatureImage)setSavedSignature(profile.signatureImage);
+        }catch{setAccountMatches(false)}
+      })
       .catch(e=>setError(e.message));
   },[token]);
 
@@ -72,20 +86,35 @@ export default function PublicSignaturePage(){
 
   function clearInk(){
     const canvas=inkCanvasRef.current;if(canvas)canvas.getContext('2d')?.clearRect(0,0,canvas.width,canvas.height);
-    setHasInk(false);drawingRef.current=false;
+    setHasInk(false);drawingRef.current=false;setStampMode(false);
   }
   function point(e:ReactPointerEvent<HTMLCanvasElement>){
     const canvas=e.currentTarget;const rect=canvas.getBoundingClientRect();
     return{x:(e.clientX-rect.left)*(canvas.width/rect.width),y:(e.clientY-rect.top)*(canvas.height/rect.height)};
   }
+  function stampSaved(e:ReactPointerEvent<HTMLCanvasElement>){
+    if(!savedSignature)return;
+    const canvas=e.currentTarget;const ctx=canvas.getContext('2d');if(!ctx)return;
+    const p=point(e);const img=new Image();
+    img.onload=()=>{
+      const maxW=canvas.width*.14;const maxH=canvas.height*.075;
+      const ratio=Math.min(maxW/img.width,maxH/img.height,1);
+      const w=Math.max(70,img.width*ratio);const h=img.height*(w/img.width);
+      const x=Math.max(0,Math.min(canvas.width-w,p.x-w/2));
+      const y=Math.max(0,Math.min(canvas.height-h,p.y-h/2));
+      ctx.drawImage(img,x,y,w,h);setHasInk(true);setStampMode(false);
+    };
+    img.src=savedSignature;
+  }
   function startDraw(e:ReactPointerEvent<HTMLCanvasElement>){
     if(rendering)return;
+    if(stampMode){e.preventDefault();stampSaved(e);return;}
     const canvas=e.currentTarget;canvas.setPointerCapture(e.pointerId);drawingRef.current=true;
     const ctx=canvas.getContext('2d');if(!ctx)return;const p=point(e);
-    ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineWidth=Math.max(2.8,canvas.width/330);ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle='#14213d';
+    ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineWidth=Math.max(1.55,canvas.width/520);ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle='#14213d';
   }
   function draw(e:ReactPointerEvent<HTMLCanvasElement>){
-    if(!drawingRef.current)return;const ctx=e.currentTarget.getContext('2d');if(!ctx)return;const p=point(e);ctx.lineTo(p.x,p.y);ctx.stroke();setHasInk(true);
+    if(!drawingRef.current||stampMode)return;const ctx=e.currentTarget.getContext('2d');if(!ctx)return;const p=point(e);ctx.lineTo(p.x,p.y);ctx.stroke();setHasInk(true);
   }
   function stopDraw(e:ReactPointerEvent<HTMLCanvasElement>){drawingRef.current=false;try{e.currentTarget.releasePointerCapture(e.pointerId)}catch{}}
   function changePage(next:number){
@@ -99,7 +128,7 @@ export default function PublicSignaturePage(){
     const image=ctx.getImageData(0,0,source.width,source.height);let minX=source.width,minY=source.height,maxX=-1,maxY=-1;
     for(let y=0;y<source.height;y++){for(let x=0;x<source.width;x++){if(image.data[(y*source.width+x)*4+3]>8){if(x<minX)minX=x;if(x>maxX)maxX=x;if(y<minY)minY=y;if(y>maxY)maxY=y;}}}
     if(maxX<0)throw new Error('Aucun tracé détecté.');
-    const pad=Math.max(12,Math.round(source.width*.015));minX=Math.max(0,minX-pad);minY=Math.max(0,minY-pad);maxX=Math.min(source.width-1,maxX+pad);maxY=Math.min(source.height-1,maxY+pad);
+    const pad=Math.max(10,Math.round(source.width*.012));minX=Math.max(0,minX-pad);minY=Math.max(0,minY-pad);maxX=Math.min(source.width-1,maxX+pad);maxY=Math.min(source.height-1,maxY+pad);
     const out=document.createElement('canvas');out.width=maxX-minX+1;out.height=maxY-minY+1;out.getContext('2d')?.drawImage(source,minX,minY,out.width,out.height,0,0,out.width,out.height);
     return out.toDataURL('image/png');
   }
@@ -111,7 +140,12 @@ export default function PublicSignaturePage(){
     if(!confirm(`Confirmer la signature de la page ${pageNumber} ? Le tracé visible sera intégré exactement à cet emplacement dans le PDF.`))return;
     setBusy(true);
     try{
-      await publicApi(`/signatures/public/${encodeURIComponent(token)}/sign-direct`,{method:'POST',body:JSON.stringify({signatureText:data.recipient.name,signatureImage:cropSignature(),signatureOverlay:overlayImage(),pageNumber})});
+      const cropped=cropSignature();
+      if(accountMatches&&saveForLater&&!savedSignature){
+        await accountApi('/users/me/signature',{method:'POST',body:JSON.stringify({signatureImage:cropped})});
+        setSavedSignature(cropped);setSaveForLater(false);
+      }
+      await publicApi(`/signatures/public/${encodeURIComponent(token)}/sign-direct`,{method:'POST',body:JSON.stringify({signatureText:data.recipient.name,signatureImage:cropped,signatureOverlay:overlayImage(),pageNumber})});
       setDone(true);
     }catch(e:any){setError(e.message)}finally{setBusy(false)}
   }
@@ -128,14 +162,14 @@ export default function PublicSignaturePage(){
       <section className="signatureDocument directInkDocument">
         <div className="signatureDocumentToolbar directInkToolbar">
           <div className="pageNav"><button type="button" onClick={()=>changePage(pageNumber-1)} disabled={pageNumber<=1}><ChevronLeft size={18}/></button><strong>Page {pageNumber} / {pageCount}</strong><button type="button" onClick={()=>changePage(pageNumber+1)} disabled={pageNumber>=pageCount}><ChevronRight size={18}/></button></div>
-          <div className="penStatus"><PenLine size={17}/><strong>Stylo actif</strong><span>Signez directement sur la page</span></div>
-          <button type="button" className="signatureClear" onClick={clearInk} disabled={!hasInk}><Eraser size={16}/> Effacer</button>
+          <div className="penStatus"><PenLine size={17}/><strong>{stampMode?'Signature enregistrée active':'Stylo actif'}</strong><span>{stampMode?'Touchez la page pour apposer votre signature':'Signez directement sur la page'}</span></div>
+          <button type="button" className="signatureClear" onClick={clearInk} disabled={!hasInk&&!stampMode}><Eraser size={16}/> Effacer</button>
         </div>
         <div className="directPdfViewport">
           {!pdfReady&&<div className="pdfLoading">Chargement du document…</div>}
           <div className="directPdfPage" aria-busy={rendering}>
             <canvas ref={pdfCanvasRef} className="pdfRenderCanvas"/>
-            <canvas ref={inkCanvasRef} className="pdfInkCanvas" onPointerDown={startDraw} onPointerMove={draw} onPointerUp={stopDraw} onPointerCancel={stopDraw} onPointerLeave={(e)=>{if(drawingRef.current&&e.buttons===0)stopDraw(e)}}/>
+            <canvas ref={inkCanvasRef} className={stampMode?'pdfInkCanvas stampMode':'pdfInkCanvas'} onPointerDown={startDraw} onPointerMove={draw} onPointerUp={stopDraw} onPointerCancel={stopDraw} onPointerLeave={(e)=>{if(drawingRef.current&&e.buttons===0)stopDraw(e)}}/>
             {rendering&&<div className="pageRendering">Affichage de la page…</div>}
           </div>
         </div>
@@ -146,7 +180,9 @@ export default function PublicSignaturePage(){
         {data.request.message&&<div className="signatureMessage">{data.request.message}</div>}
         <div className="signatureProgress"><strong>Circuit de signature</strong>{data.request.recipients.map((r:any)=><div key={r.order}><span>{r.order}. {r.name}</span><small>{r.status==='SIGNED'?'Signé':r.status==='REFUSED'?'Refusé':'En attente'}</small></div>)}</div>
         <form onSubmit={sign}>
-          <div className="directInkInstructions"><PenLine size={22}/><div><strong>Signez directement sur le document</strong><span>Avec le doigt, le stylet ou la souris, tracez votre signature exactement à l’endroit voulu sur la page affichée. Il n’y a plus d’étape de placement.</span></div></div>
+          {accountMatches&&savedSignature&&<div className="savedSignatureBox"><div><Stamp size={20}/><strong>Ma signature Coffria</strong></div><img src={savedSignature} alt="Signature enregistrée"/><button type="button" className="secondary full" onClick={()=>setStampMode(true)}><Stamp size={17}/> Utiliser ma signature enregistrée</button><small>Activez-la puis touchez directement l’endroit du document où l’apposer.</small></div>}
+          <div className="directInkInstructions"><PenLine size={22}/><div><strong>Signez directement sur le document</strong><span>Avec le doigt, le stylet ou la souris, tracez votre signature exactement à l’endroit voulu. Le trait a été affiné pour une signature plus discrète.</span></div></div>
+          {accountMatches&&!savedSignature&&<label className="saveSignatureChoice"><input type="checkbox" checked={saveForLater} onChange={e=>setSaveForLater(e.target.checked)}/><span><strong>Mémoriser cette signature dans mon compte Coffria</strong><small>Elle sera conservée dans votre espace privé et proposée lors de vos prochaines signatures.</small></span></label>}
           {error&&<div className="signatureInlineError">{error}</div>}
           <p className="signatureConsent">Le tracé visible sur la page {pageNumber} sera fusionné avec le PDF à la même position. Coffria conserve la date, l’adresse IP, le navigateur et l’empreinte du document à titre de traçabilité.</p>
           <button className="publicPrimary full" disabled={busy||!hasInk||rendering}>{busy?'Intégration de la signature…':'Valider cette signature'}</button>
