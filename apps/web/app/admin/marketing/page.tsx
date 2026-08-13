@@ -6,121 +6,34 @@ import { AppShell } from '../../../components/AppShell';
 import { api } from '../../../lib/api';
 
 const emptyOffer = { title: '', subtitle: '', description: '', ctaLabel: "Découvrir l'offre", ctaUrl: '/contact', placement: 'BOTH', startAt: '', endAt: '', isActive: true, sortOrder: 0 };
-const emptyPlan = { name: '', slug: '', subtitle: '', priceLabel: 'Sur devis', monthlyPriceCents: '', yearlyPriceCents: '', storageGb: '', maxUsers: '', featuresText: '', badge: '', isHighlighted: false, isActive: true, sortOrder: 0 };
+const emptyPlan = { name: '', slug: '', subtitle: '', priceLabel: '', monthlyPriceCents: '', yearlyPriceCents: '', storageGb: '', maxUsers: '', featuresText: '', badge: '', isHighlighted: false, isActive: true, sortOrder: 0 };
 
 export default function MarketingPage() {
   const [tab, setTab] = useState<'offers'|'plans'>('offers');
-  const [offers, setOffers] = useState<any[]>([]);
-  const [plans, setPlans] = useState<any[]>([]);
-  const [offerForm, setOfferForm] = useState<any>(emptyOffer);
-  const [planForm, setPlanForm] = useState<any>(emptyPlan);
-  const [editingOffer, setEditingOffer] = useState<any>(null);
-  const [editingPlan, setEditingPlan] = useState<any>(null);
-  const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
+  const [offers, setOffers] = useState<any[]>([]); const [plans, setPlans] = useState<any[]>([]);
+  const [offerForm, setOfferForm] = useState<any>(emptyOffer); const [planForm, setPlanForm] = useState<any>(emptyPlan);
+  const [editingOffer, setEditingOffer] = useState<any>(null); const [editingPlan, setEditingPlan] = useState<any>(null);
+  const [error, setError] = useState(''); const [notice, setNotice] = useState('');
 
-  async function load() {
-    const [o, p] = await Promise.all([api('/marketing/offers'), api('/marketing/plans')]);
-    setOffers(o); setPlans(p);
-  }
-  useEffect(() => { load().catch((e)=>setError(e.message)); }, []);
+  async function load(){const[o,p]=await Promise.all([api('/marketing/offers'),api('/marketing/plans')]);setOffers(o);setPlans(p)}
+  useEffect(()=>{load().catch(e=>setError(e.message))},[]);
+  function resetMessages(){setError('');setNotice('')}
 
-  function resetMessages(){ setError(''); setNotice(''); }
+  async function saveOffer(e:React.FormEvent){e.preventDefault();resetMessages();try{const body={...offerForm,startAt:offerForm.startAt||undefined,endAt:offerForm.endAt||undefined,sortOrder:Number(offerForm.sortOrder||0)};await api(editingOffer?`/marketing/offers/${editingOffer.id}`:'/marketing/offers',{method:editingOffer?'PATCH':'POST',body:JSON.stringify(body)});setNotice(editingOffer?'Offre mise à jour.':'Offre créée.');setOfferForm(emptyOffer);setEditingOffer(null);await load()}catch(e:any){setError(e.message)}}
+  function editOffer(item:any){setEditingOffer(item);setOfferForm({...item,startAt:item.startAt?String(item.startAt).slice(0,10):'',endAt:item.endAt?String(item.endAt).slice(0,10):''});window.scrollTo({top:0,behavior:'smooth'})}
+  async function deleteOffer(item:any){if(!confirm(`Supprimer l'offre « ${item.title} » ?`))return;try{await api(`/marketing/offers/${item.id}`,{method:'DELETE'});setNotice('Offre supprimée.');await load()}catch(e:any){setError(e.message)}}
 
-  async function saveOffer(e: React.FormEvent) {
-    e.preventDefault(); resetMessages();
-    try {
-      const body = { ...offerForm, startAt: offerForm.startAt || undefined, endAt: offerForm.endAt || undefined, sortOrder: Number(offerForm.sortOrder || 0) };
-      await api(editingOffer ? `/marketing/offers/${editingOffer.id}` : '/marketing/offers', { method: editingOffer ? 'PATCH' : 'POST', body: JSON.stringify(body) });
-      setNotice(editingOffer ? 'Offre mise à jour.' : 'Offre créée.'); setOfferForm(emptyOffer); setEditingOffer(null); await load();
-    } catch (e:any) { setError(e.message); }
-  }
+  async function savePlan(e:React.FormEvent){e.preventDefault();resetMessages();try{const features=String(planForm.featuresText||'').split('\n').map(x=>x.trim()).filter(Boolean);const body:any={name:planForm.name,slug:planForm.slug||undefined,subtitle:planForm.subtitle||undefined,priceLabel:planForm.priceLabel||undefined,features,badge:planForm.badge||undefined,isHighlighted:Boolean(planForm.isHighlighted),isActive:Boolean(planForm.isActive),sortOrder:Number(planForm.sortOrder||0)};if(planForm.monthlyPriceCents!=='')body.monthlyPriceCents=Math.round(Number(planForm.monthlyPriceCents)*100);if(planForm.yearlyPriceCents!=='')body.yearlyPriceCents=Math.round(Number(planForm.yearlyPriceCents)*100);if(planForm.storageGb!=='')body.storageGb=Number(planForm.storageGb);if(planForm.maxUsers!=='')body.maxUsers=Number(planForm.maxUsers);await api(editingPlan?`/marketing/plans/${editingPlan.id}`:'/marketing/plans',{method:editingPlan?'PATCH':'POST',body:JSON.stringify(body)});setNotice(editingPlan?'Formule mise à jour.':'Formule créée.');setPlanForm(emptyPlan);setEditingPlan(null);await load()}catch(e:any){setError(e.message)}}
+  function editPlan(item:any){setEditingPlan(item);setPlanForm({...item,featuresText:Array.isArray(item.features)?item.features.join('\n'):'',monthlyPriceCents:item.monthlyPriceCents!=null?Number(item.monthlyPriceCents)/100:'',yearlyPriceCents:item.yearlyPriceCents!=null?Number(item.yearlyPriceCents)/100:'',storageGb:item.storageGb??'',maxUsers:item.maxUsers??''});window.scrollTo({top:0,behavior:'smooth'})}
+  async function deletePlan(item:any){if(!confirm(`Supprimer la formule « ${item.name} » ?`))return;try{await api(`/marketing/plans/${item.id}`,{method:'DELETE'});setNotice('Formule supprimée.');await load()}catch(e:any){setError(e.message)}}
 
-  function editOffer(item:any) {
-    setEditingOffer(item);
-    setOfferForm({ ...item, startAt: item.startAt ? String(item.startAt).slice(0,10) : '', endAt: item.endAt ? String(item.endAt).slice(0,10) : '' });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
+  return <AppShell title="Vitrine & Marketing"><section className="content marketingAdmin">
+    <div className="pageTitle"><div><h1>Vitrine & Marketing</h1><p className="muted">Pilotez les offres du moment et les trois packs affichés sur la page Tarifs.</p></div><Megaphone size={28}/></div>
+    {error&&<div className="alert error">{error}</div>}{notice&&<div className="alert success">{notice}</div>}
+    <div className="adminTabs"><button className={tab==='offers'?'active':''} onClick={()=>setTab('offers')}>Offres du moment</button><button className={tab==='plans'?'active':''} onClick={()=>setTab('plans')}>Tarifs</button></div>
 
-  async function deleteOffer(item:any) {
-    if (!confirm(`Supprimer l'offre « ${item.title} » ?`)) return;
-    try { await api(`/marketing/offers/${item.id}`, { method:'DELETE' }); setNotice('Offre supprimée.'); await load(); }
-    catch (e:any) { setError(e.message); }
-  }
+    {tab==='offers'&&<><form className="settingsCard marketingForm" onSubmit={saveOffer}><div className="formTitle"><div><h2>{editingOffer?'Modifier l’offre':'Nouvelle offre'}</h2><p className="muted">Choisissez où et quand l’offre doit apparaître.</p></div><Plus size={20}/></div><div className="formGrid"><label className="field">Titre<input required value={offerForm.title} onChange={e=>setOfferForm({...offerForm,title:e.target.value})}/></label><label className="field">Sous-titre<input value={offerForm.subtitle} onChange={e=>setOfferForm({...offerForm,subtitle:e.target.value})}/></label><label className="field fullField">Description<textarea required value={offerForm.description} onChange={e=>setOfferForm({...offerForm,description:e.target.value})}/></label><label className="field">Texte du bouton<input value={offerForm.ctaLabel} onChange={e=>setOfferForm({...offerForm,ctaLabel:e.target.value})}/></label><label className="field">Lien du bouton<input value={offerForm.ctaUrl} onChange={e=>setOfferForm({...offerForm,ctaUrl:e.target.value})}/></label><label className="field">Emplacement<select value={offerForm.placement} onChange={e=>setOfferForm({...offerForm,placement:e.target.value})}><option value="TOP">Bandeau haut uniquement</option><option value="HOME">Section accueil uniquement</option><option value="BOTH">Bandeau + accueil</option></select></label><label className="field">Ordre<input type="number" min="0" value={offerForm.sortOrder} onChange={e=>setOfferForm({...offerForm,sortOrder:Number(e.target.value)})}/></label><label className="field">Début<input type="date" value={offerForm.startAt} onChange={e=>setOfferForm({...offerForm,startAt:e.target.value})}/></label><label className="field">Fin<input type="date" value={offerForm.endAt} onChange={e=>setOfferForm({...offerForm,endAt:e.target.value})}/></label></div><label className="switchLabel"><input type="checkbox" checked={offerForm.isActive} onChange={e=>setOfferForm({...offerForm,isActive:e.target.checked})}/> Offre active</label><div className="modalActions">{editingOffer&&<button type="button" className="secondary" onClick={()=>{setEditingOffer(null);setOfferForm(emptyOffer)}}>Annuler</button>}<button className="primary"><Save size={16}/> Enregistrer</button></div></form><div className="marketingList">{offers.map(item=><article className="card marketingItem" key={item.id}><div><span className={`status ${item.isActive?'':'statusOff'}`}>{item.isActive?'Active':'Inactive'}</span><h3>{item.title}</h3><p>{item.description}</p><small>{item.placement} · ordre {item.sortOrder}</small></div><div className="rowActions"><button onClick={()=>editOffer(item)}><Pencil size={16}/></button><button onClick={()=>deleteOffer(item)}><Trash2 size={16}/></button></div></article>)}</div></>}
 
-  async function savePlan(e: React.FormEvent) {
-    e.preventDefault(); resetMessages();
-    try {
-      const features = String(planForm.featuresText || '').split('\n').map((x)=>x.trim()).filter(Boolean);
-      const body:any = {
-        name: planForm.name, slug: planForm.slug || undefined, subtitle: planForm.subtitle || undefined, priceLabel: planForm.priceLabel || 'Sur devis',
-        features, badge: planForm.badge || undefined, isHighlighted: Boolean(planForm.isHighlighted), isActive: Boolean(planForm.isActive), sortOrder: Number(planForm.sortOrder || 0),
-      };
-      for (const key of ['monthlyPriceCents','yearlyPriceCents','storageGb','maxUsers']) if (planForm[key] !== '' && planForm[key] !== null) body[key] = Number(planForm[key]);
-      await api(editingPlan ? `/marketing/plans/${editingPlan.id}` : '/marketing/plans', { method: editingPlan ? 'PATCH' : 'POST', body: JSON.stringify(body) });
-      setNotice(editingPlan ? 'Formule mise à jour.' : 'Formule créée.'); setPlanForm(emptyPlan); setEditingPlan(null); await load();
-    } catch (e:any) { setError(e.message); }
-  }
-
-  function editPlan(item:any) {
-    setEditingPlan(item);
-    setPlanForm({ ...item, featuresText: Array.isArray(item.features) ? item.features.join('\n') : '', monthlyPriceCents: item.monthlyPriceCents ?? '', yearlyPriceCents: item.yearlyPriceCents ?? '', storageGb: item.storageGb ?? '', maxUsers: item.maxUsers ?? '' });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-
-  async function deletePlan(item:any) {
-    if (!confirm(`Supprimer la formule « ${item.name} » ?`)) return;
-    try { await api(`/marketing/plans/${item.id}`, { method:'DELETE' }); setNotice('Formule supprimée.'); await load(); }
-    catch (e:any) { setError(e.message); }
-  }
-
-  return <AppShell title="Vitrine & Marketing">
-    <section className="content marketingAdmin">
-      <div className="pageTitle"><div><h1>Vitrine & Marketing</h1><p className="muted">Pilotez les offres promotionnelles visibles sur l’accueil et les formules de la page Tarifs.</p></div><Megaphone size={28}/></div>
-      {error && <div className="alert error">{error}</div>}{notice && <div className="alert success">{notice}</div>}
-      <div className="adminTabs"><button className={tab==='offers'?'active':''} onClick={()=>setTab('offers')}>Offres du moment</button><button className={tab==='plans'?'active':''} onClick={()=>setTab('plans')}>Tarifs</button></div>
-
-      {tab==='offers' && <>
-        <form className="settingsCard marketingForm" onSubmit={saveOffer}>
-          <div className="formTitle"><div><h2>{editingOffer?'Modifier l’offre':'Nouvelle offre'}</h2><p className="muted">Choisissez où et quand l’offre doit apparaître.</p></div><Plus size={20}/></div>
-          <div className="formGrid">
-            <label className="field">Titre<input required value={offerForm.title} onChange={(e)=>setOfferForm({...offerForm,title:e.target.value})}/></label>
-            <label className="field">Sous-titre<input value={offerForm.subtitle} onChange={(e)=>setOfferForm({...offerForm,subtitle:e.target.value})}/></label>
-            <label className="field fullField">Description<textarea required value={offerForm.description} onChange={(e)=>setOfferForm({...offerForm,description:e.target.value})}/></label>
-            <label className="field">Texte du bouton<input value={offerForm.ctaLabel} onChange={(e)=>setOfferForm({...offerForm,ctaLabel:e.target.value})}/></label>
-            <label className="field">Lien du bouton<input value={offerForm.ctaUrl} onChange={(e)=>setOfferForm({...offerForm,ctaUrl:e.target.value})}/></label>
-            <label className="field">Emplacement<select value={offerForm.placement} onChange={(e)=>setOfferForm({...offerForm,placement:e.target.value})}><option value="TOP">Bandeau haut uniquement</option><option value="HOME">Section accueil uniquement</option><option value="BOTH">Bandeau + accueil</option></select></label>
-            <label className="field">Ordre<input type="number" min="0" value={offerForm.sortOrder} onChange={(e)=>setOfferForm({...offerForm,sortOrder:Number(e.target.value)})}/></label>
-            <label className="field">Début<input type="date" value={offerForm.startAt} onChange={(e)=>setOfferForm({...offerForm,startAt:e.target.value})}/></label>
-            <label className="field">Fin<input type="date" value={offerForm.endAt} onChange={(e)=>setOfferForm({...offerForm,endAt:e.target.value})}/></label>
-          </div>
-          <label className="switchLabel"><input type="checkbox" checked={offerForm.isActive} onChange={(e)=>setOfferForm({...offerForm,isActive:e.target.checked})}/> Offre active</label>
-          <div className="modalActions">{editingOffer&&<button type="button" className="secondary" onClick={()=>{setEditingOffer(null);setOfferForm(emptyOffer)}}>Annuler</button>}<button className="primary"><Save size={16}/> Enregistrer</button></div>
-        </form>
-        <div className="marketingList">{offers.map(item=><article className="card marketingItem" key={item.id}><div><span className={`status ${item.isActive?'':'statusOff'}`}>{item.isActive?'Active':'Inactive'}</span><h3>{item.title}</h3><p>{item.description}</p><small>{item.placement} · ordre {item.sortOrder}</small></div><div className="rowActions"><button onClick={()=>editOffer(item)}><Pencil size={16}/></button><button onClick={()=>deleteOffer(item)}><Trash2 size={16}/></button></div></article>)}</div>
-      </>}
-
-      {tab==='plans' && <>
-        <form className="settingsCard marketingForm" onSubmit={savePlan}>
-          <div className="formTitle"><div><h2>{editingPlan?'Modifier la formule':'Nouvelle formule tarifaire'}</h2><p className="muted">Les modifications sont répercutées sur la page Tarifs.</p></div><Plus size={20}/></div>
-          <div className="formGrid">
-            <label className="field">Nom<input required value={planForm.name} onChange={(e)=>setPlanForm({...planForm,name:e.target.value})}/></label>
-            <label className="field">Slug<input value={planForm.slug} onChange={(e)=>setPlanForm({...planForm,slug:e.target.value})} placeholder="généré automatiquement"/></label>
-            <label className="field fullField">Description courte<input value={planForm.subtitle} onChange={(e)=>setPlanForm({...planForm,subtitle:e.target.value})}/></label>
-            <label className="field">Libellé du prix<input value={planForm.priceLabel} onChange={(e)=>setPlanForm({...planForm,priceLabel:e.target.value})} placeholder="Sur devis"/></label>
-            <label className="field">Badge<input value={planForm.badge} onChange={(e)=>setPlanForm({...planForm,badge:e.target.value})} placeholder="Recommandée"/></label>
-            <label className="field">Stockage (Go)<input type="number" min="0" value={planForm.storageGb} onChange={(e)=>setPlanForm({...planForm,storageGb:e.target.value})}/></label>
-            <label className="field">Utilisateurs max<input type="number" min="1" value={planForm.maxUsers} onChange={(e)=>setPlanForm({...planForm,maxUsers:e.target.value})}/></label>
-            <label className="field">Prix mensuel en centimes<input type="number" min="0" value={planForm.monthlyPriceCents} onChange={(e)=>setPlanForm({...planForm,monthlyPriceCents:e.target.value})}/></label>
-            <label className="field">Prix annuel en centimes<input type="number" min="0" value={planForm.yearlyPriceCents} onChange={(e)=>setPlanForm({...planForm,yearlyPriceCents:e.target.value})}/></label>
-            <label className="field">Ordre<input type="number" min="0" value={planForm.sortOrder} onChange={(e)=>setPlanForm({...planForm,sortOrder:Number(e.target.value)})}/></label>
-            <label className="field fullField">Avantages — un par ligne<textarea required value={planForm.featuresText} onChange={(e)=>setPlanForm({...planForm,featuresText:e.target.value})}/></label>
-          </div>
-          <div className="marketingChecks"><label className="switchLabel"><input type="checkbox" checked={planForm.isActive} onChange={(e)=>setPlanForm({...planForm,isActive:e.target.checked})}/> Visible</label><label className="switchLabel"><input type="checkbox" checked={planForm.isHighlighted} onChange={(e)=>setPlanForm({...planForm,isHighlighted:e.target.checked})}/> Mettre en avant</label></div>
-          <div className="modalActions">{editingPlan&&<button type="button" className="secondary" onClick={()=>{setEditingPlan(null);setPlanForm(emptyPlan)}}>Annuler</button>}<button className="primary"><Save size={16}/> Enregistrer</button></div>
-        </form>
-        <div className="marketingList">{plans.map(item=><article className="card marketingItem" key={item.id}><div><span className={`status ${item.isActive?'':'statusOff'}`}>{item.isActive?'Visible':'Masquée'}</span><h3>{item.name} {item.badge&&<small>· {item.badge}</small>}</h3><p>{item.subtitle}</p><small>{item.priceLabel} · ordre {item.sortOrder}</small></div><div className="rowActions"><button onClick={()=>editPlan(item)}><Pencil size={16}/></button><button onClick={()=>deletePlan(item)}><Trash2 size={16}/></button></div></article>)}</div>
-      </>}
-    </section>
-  </AppShell>;
+    {tab==='plans'&&<><form className="settingsCard marketingForm" onSubmit={savePlan}><div className="formTitle"><div><h2>{editingPlan?'Modifier la formule':'Nouvelle formule tarifaire'}</h2><p className="muted">Les prix sont saisis directement en FCFA HT.</p></div><Plus size={20}/></div><div className="formGrid"><label className="field">Nom<input required value={planForm.name} onChange={e=>setPlanForm({...planForm,name:e.target.value})}/></label><label className="field">Slug<input value={planForm.slug} onChange={e=>setPlanForm({...planForm,slug:e.target.value})} placeholder="généré automatiquement"/></label><label className="field fullField">Description courte<input value={planForm.subtitle} onChange={e=>setPlanForm({...planForm,subtitle:e.target.value})}/></label><label className="field">Libellé commercial du prix<input value={planForm.priceLabel||''} onChange={e=>setPlanForm({...planForm,priceLabel:e.target.value})} placeholder="35 000 FCFA HT / mois"/></label><label className="field">Badge<input value={planForm.badge||''} onChange={e=>setPlanForm({...planForm,badge:e.target.value})} placeholder="Bestseller"/></label><label className="field">Stockage (Go)<input type="number" min="0" value={planForm.storageGb} onChange={e=>setPlanForm({...planForm,storageGb:e.target.value})}/></label><label className="field">Utilisateurs max<input type="number" min="1" value={planForm.maxUsers} onChange={e=>setPlanForm({...planForm,maxUsers:e.target.value})}/></label><label className="field">Prix mensuel (FCFA HT)<input type="number" min="0" value={planForm.monthlyPriceCents} onChange={e=>setPlanForm({...planForm,monthlyPriceCents:e.target.value})}/></label><label className="field">Prix annuel (FCFA HT)<input type="number" min="0" value={planForm.yearlyPriceCents} onChange={e=>setPlanForm({...planForm,yearlyPriceCents:e.target.value})}/></label><label className="field">Ordre<input type="number" min="0" value={planForm.sortOrder} onChange={e=>setPlanForm({...planForm,sortOrder:Number(e.target.value)})}/></label><label className="field fullField">Avantages — un par ligne<textarea required value={planForm.featuresText} onChange={e=>setPlanForm({...planForm,featuresText:e.target.value})}/></label></div><div className="marketingChecks"><label className="switchLabel"><input type="checkbox" checked={planForm.isActive} onChange={e=>setPlanForm({...planForm,isActive:e.target.checked})}/> Visible</label><label className="switchLabel"><input type="checkbox" checked={planForm.isHighlighted} onChange={e=>setPlanForm({...planForm,isHighlighted:e.target.checked})}/> Mettre en avant</label></div><div className="modalActions">{editingPlan&&<button type="button" className="secondary" onClick={()=>{setEditingPlan(null);setPlanForm(emptyPlan)}}>Annuler</button>}<button className="primary"><Save size={16}/> Enregistrer</button></div></form><div className="marketingList">{plans.map(item=><article className="card marketingItem" key={item.id}><div><span className={`status ${item.isActive?'':'statusOff'}`}>{item.isActive?'Visible':'Masquée'}</span><h3>{item.name} {item.badge&&<small>· {item.badge}</small>}</h3><p>{item.subtitle}</p><small>{item.monthlyPriceCents!=null?`${Math.round(Number(item.monthlyPriceCents)/100).toLocaleString('fr-FR')} FCFA HT/mois`:item.priceLabel} · ordre {item.sortOrder}</small></div><div className="rowActions"><button onClick={()=>editPlan(item)}><Pencil size={16}/></button><button onClick={()=>deletePlan(item)}><Trash2 size={16}/></button></div></article>)}</div></>}
+  </section></AppShell>
 }
