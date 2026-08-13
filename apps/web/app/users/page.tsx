@@ -19,8 +19,9 @@ export default function UsersPage() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     try {
-      const payload = { ...form };
+      const payload: any = { ...form };
       if (editing && !payload.password) delete payload.password;
+      if (!editing) delete payload.status;
       await api(editing ? `/users/${editing.id}` : '/users', { method: editing ? 'PATCH' : 'POST', body: JSON.stringify(payload) });
       setShow(false); setEditing(null); setForm(blank); setNotice(editing ? 'Utilisateur modifié.' : 'Utilisateur créé.'); await load();
     } catch (e: any) { setError(e.message); }
