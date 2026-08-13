@@ -29,7 +29,6 @@ import { SignatureWorkspaceController } from './signature-workspace.controller';
 import { AiController } from './ai.controller';
 import { ArchiveAiService } from './archive-ai.service';
 import { DocumentConversionService } from './document-conversion.service';
-import { CadConversionService } from './cad-conversion.service';
 import { UploadCleanupService } from './upload-cleanup.service';
 
 @Module({
@@ -72,7 +71,6 @@ import { UploadCleanupService } from './upload-cleanup.service';
     SearchService,
     ArchiveAiService,
     DocumentConversionService,
-    CadConversionService,
     UploadCleanupService,
   ],
 })
