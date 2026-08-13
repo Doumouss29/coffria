@@ -15,6 +15,7 @@ import { IsEmail, IsIn, IsOptional, IsString, MinLength } from 'class-validator'
 import * as bcrypt from 'bcryptjs';
 import { JwtGuard } from './jwt.guard';
 import { PrismaService } from './prisma.service';
+import { StorageService } from './storage.service';
 
 class CreateUserDto {
   @IsString() name!: string;
@@ -29,16 +30,66 @@ class UpdateUserDto {
   @IsOptional() @IsIn(['ACTIVE', 'SUSPENDED']) status?: 'ACTIVE' | 'SUSPENDED';
   @IsOptional() @IsString() @MinLength(10) password?: string;
 }
+class SavedSignatureDto {
+  @IsString() @MinLength(20) signatureImage!: string;
+}
 
 @Controller('users')
 @UseGuards(JwtGuard)
 export class UsersController {
-  constructor(private db: PrismaService) {}
+  constructor(private db: PrismaService, private storage: StorageService) {}
 
   private check(req: any): string {
     if (req.user.role !== 'TENANT_ADMIN') throw new ForbiddenException('Action réservée aux administrateurs de l’entreprise');
     if (!req.user.tenantId) throw new ForbiddenException('Organisation requise');
     return req.user.tenantId;
+  }
+
+  private async currentUser(req: any) {
+    const user = await this.db.user.findUnique({ where: { id: req.user.sub }, select: { id: true, tenantId: true, email: true, name: true, status: true } });
+    if (!user || !user.tenantId || user.status !== 'ACTIVE') throw new BadRequestException('Compte Coffria actif requis.');
+    return user;
+  }
+
+  private signatureKey(tenantId: string, userId: string) {
+    return `tenants/${tenantId}/users/${userId}/saved-signature.png`;
+  }
+
+  private decodeSignature(dataUrl: string) {
+    const match = dataUrl.match(/^data:image\/png;base64,([A-Za-z0-9+/=]+)$/);
+    if (!match) throw new BadRequestException('La signature doit être une image PNG valide.');
+    const bytes = Buffer.from(match[1], 'base64');
+    if (!bytes.length || bytes.length > 500_000) throw new BadRequestException('La signature est vide ou trop volumineuse.');
+    return bytes;
+  }
+
+  @Get('me/signature')
+  async mySignature(@Req() req: any) {
+    const user = await this.currentUser(req);
+    const key = this.signatureKey(user.tenantId!, user.id);
+    try {
+      const bytes = await this.storage.readBuffer(key);
+      return { saved: true, email: user.email, name: user.name, signatureImage: `data:image/png;base64,${bytes.toString('base64')}` };
+    } catch {
+      return { saved: false, email: user.email, name: user.name };
+    }
+  }
+
+  @Post('me/signature')
+  async saveMySignature(@Req() req: any, @Body() dto: SavedSignatureDto) {
+    const user = await this.currentUser(req);
+    const bytes = this.decodeSignature(dto.signatureImage);
+    await this.storage.putBuffer(this.signatureKey(user.tenantId!, user.id), bytes, 'image/png');
+    await this.db.auditLog.create({ data: { tenantId: user.tenantId, userId: user.id, action: 'SAVED_SIGNATURE_UPDATED', entityType: 'User', entityId: user.id, details: { storage: 'PRIVATE_S3' } } });
+    return { success: true };
+  }
+
+  @Delete('me/signature')
+  async deleteMySignature(@Req() req: any) {
+    const user = await this.currentUser(req);
+    await this.storage.delete(this.signatureKey(user.tenantId!, user.id)).catch(() => undefined);
+    await this.db.auditLog.create({ data: { tenantId: user.tenantId, userId: user.id, action: 'SAVED_SIGNATURE_DELETED', entityType: 'User', entityId: user.id } });
+    return { success: true };
   }
 
   @Get()
