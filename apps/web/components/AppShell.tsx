@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState } from 'react';
 const tenantLinks = [
   { href: '/explorer', label: 'Mes dossiers', icon: Folder },
   { href: '/assistant', label: 'Assistant IA', icon: Bot },
-  { href: '/signatures', label: 'Signatures', icon: FileSignature },
+  { href: '/signatures', label: 'Espace signature', icon: FileSignature },
   { href: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
   { href: '/users', label: 'Utilisateurs', icon: Users },
   { href: '/groups', label: 'Groupes d’accès', icon: UsersRound },
@@ -37,9 +37,10 @@ export function AppShell({ title, children }: { title: string; children: React.R
         { href: '/settings', label: 'Mon compte', icon: Settings },
       ];
     }
-    if (user?.role === 'TENANT_ADMIN') return tenantLinks;
-    if (user?.role === 'EDITOR') return tenantLinks.filter((link) => !['/users'].includes(link.href));
-    return tenantLinks.filter((link) => !['/users','/groups','/signatures'].includes(link.href));
+    const visible = user?.signatureEnabled === false ? tenantLinks.filter((link) => link.href !== '/signatures') : tenantLinks;
+    if (user?.role === 'TENANT_ADMIN') return visible;
+    if (user?.role === 'EDITOR') return visible.filter((link) => !['/users'].includes(link.href));
+    return visible.filter((link) => !['/users','/groups','/signatures'].includes(link.href));
   }, [user]);
 
   function logout() {
