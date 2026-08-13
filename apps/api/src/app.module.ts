@@ -23,6 +23,7 @@ import { PreviewController } from './preview.controller';
 import { BulkController } from './bulk.controller';
 import { SignaturesController } from './signatures.controller';
 import { DirectSignatureController } from './direct-signature.controller';
+import { SignatureSubscriptionController } from './signature-subscription.controller';
 import { AiController } from './ai.controller';
 import { ArchiveAiService } from './archive-ai.service';
 import { DocumentConversionService } from './document-conversion.service';
@@ -56,6 +57,7 @@ import { UploadCleanupService } from './upload-cleanup.service';
     BulkController,
     SignaturesController,
     DirectSignatureController,
+    SignatureSubscriptionController,
     AiController,
   ],
   providers: [
