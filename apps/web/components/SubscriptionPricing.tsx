@@ -11,6 +11,7 @@ const fallbackPlans = [
   { id:'corporate', slug:'corporate', name:'CORPORATE', subtitle:'L’expérience sur-mesure pour les grandes organisations et les volumes importants.', monthlyPriceCents:18000000, yearlyPriceCents:180000000, storageGb:1000, features:['Tout le Pack PRO','1 To de stockage documentaire','Signature graphique multi-signataires et workflows','Quota de signature configurable ou illimité selon contrat','Assistant IA Chat avec vos documents','Accès API et intégrations selon périmètre contractuel','Accompagnement et support dédiés'], badge:'Corporate', isHighlighted:false },
 ];
 
+const allowedPlanSlugs = new Set(['essentiel','pro','corporate']);
 function fcfa(cents?:number|null){if(cents==null)return 'Sur devis';return `${Math.round(cents/100).toLocaleString('fr-FR')} FCFA HT`;}
 function freeMonths(plan:any){return String(plan.slug||plan.name).toLowerCase().includes('corporate')?2:1;}
 
@@ -22,7 +23,7 @@ export function SubscriptionPricing(){
   const choiceRef=useRef<HTMLDivElement|null>(null);
 
   useEffect(()=>{
-    api('/marketing/public/plans').then(setPlans).catch(()=>{});
+    api('/marketing/public/plans').then((items:any[])=>setPlans(items.filter((plan:any)=>allowedPlanSlugs.has(String(plan.slug||'').toLowerCase())))).catch(()=>{});
     const params=new URLSearchParams(window.location.search);
     setSelectedSlug(params.get('plan')||'');
     setBilling(params.get('billing')==='yearly'?'yearly':'monthly');
