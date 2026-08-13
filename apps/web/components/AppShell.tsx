@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Bot, Building2, FileSignature, Folder, LayoutDashboard, LogOut, Megaphone, Settings, ShieldCheck, Trash2, Users, UsersRound } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { api } from '../lib/api';
 
 const tenantLinks = [
   { href: '/explorer', label: 'Mes dossiers', icon: Folder },
@@ -25,7 +26,16 @@ export function AppShell({ title, children }: { title: string; children: React.R
     const token = localStorage.getItem('coffria_token');
     if (!token) { router.replace('/connexion'); return; }
     const raw = localStorage.getItem('coffria_user');
-    if (raw) setUser(JSON.parse(raw));
+    if (!raw) return;
+    const current = JSON.parse(raw);
+    setUser(current);
+    if (current.role !== 'SUPER_ADMIN' && current.tenantId) {
+      api('/signature-subscription').then((subscription) => {
+        const refreshed = { ...current, signatureEnabled: Boolean(subscription.signatureEnabled) };
+        setUser(refreshed);
+        localStorage.setItem('coffria_user', JSON.stringify(refreshed));
+      }).catch(() => undefined);
+    }
   }, [router]);
 
   const links = useMemo(() => {
