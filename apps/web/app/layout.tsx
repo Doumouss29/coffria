@@ -2,6 +2,7 @@ import './globals.css';
 import './marketing.css';
 import './marketing-v2.css';
 import './innovations.css';
+import './mobile-explorer.css';
 
 export const metadata = {
   title: 'Coffria',
