@@ -19,7 +19,7 @@ export function SubscriptionPricing(){
   const params=useSearchParams();
   const[plans,setPlans]=useState<any[]>([]);
   const[selectedSlug,setSelectedSlug]=useState(params.get('plan')||'');
-  const[billing,setBilling]=useState<'monthly'|'yearly'>('monthly');
+  const[billing,setBilling]=useState<'monthly'|'yearly'>(params.get('billing')==='yearly'?'yearly':'monthly');
   const choiceRef=useRef<HTMLDivElement|null>(null);
   useEffect(()=>{api('/marketing/public/plans').then(setPlans).catch(()=>{})},[]);
   const displayPlans=plans.length?plans:fallbackPlans;
@@ -29,7 +29,7 @@ export function SubscriptionPricing(){
   function choose(plan:any){setSelectedSlug(plan.slug||plan.name);setBilling('monthly');setTimeout(()=>choiceRef.current?.scrollIntoView({behavior:'smooth',block:'center'}),50)}
 
   return <>
-    <section className="section"><div className="publicContainer pricingGrid">{displayPlans.map((plan:any)=>{
+    <section className="section"><div className="publicContainer"><div className="subscriptionSteps"><span className="active">1. Pack</span><span>2. Périodicité</span><span>3. Conditions</span><span>4. Souscription</span></div><div className="pricingGrid">{displayPlans.map((plan:any)=>{
       const isSelected=selected&&(selected.id===plan.id||selected.slug===plan.slug);
       return <article key={plan.id||plan.name} className={`priceCard ${plan.isHighlighted?'featured':''} ${isSelected?'selectedPlan':''}`}>
         {plan.badge&&<span className="planBadge">{plan.badge}</span>}
@@ -38,7 +38,7 @@ export function SubscriptionPricing(){
         {plan.storageGb&&<div className="planMeta">{plan.storageGb>=1000?'1 To':`${plan.storageGb} Go`} de stockage</div>}
         <ul className="priceList">{(Array.isArray(plan.features)?plan.features:[]).map((item:string)=><li key={item}><Check size={15}/>{item}</li>)}</ul>
         <button type="button" onClick={()=>choose(plan)} className={plan.isHighlighted?'publicPrimary':'publicSecondary'}>{isSelected?'Pack sélectionné':'Choisir ce pack'}</button>
-      </article>})}</div></section>
+      </article>})}</div></div></section>
 
     {selected&&<section className="section sectionAlt" ref={choiceRef}><div className="publicContainer billingChoice">
       <div><span className="eyebrow">Étape 2 sur 4</span><h2>Choisissez la périodicité du Pack {selected.name}</h2><p>Le paiement annuel inclut {freeMonths(selected)} mois offert{freeMonths(selected)>1?'s':''}.</p></div>
