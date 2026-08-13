@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { Check, Gift } from 'lucide-react';
-import { useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../lib/api';
 
@@ -16,17 +15,35 @@ function fcfa(cents?:number|null){if(cents==null)return 'Sur devis';return `${Ma
 function freeMonths(plan:any){return String(plan.slug||plan.name).toLowerCase().includes('corporate')?2:1;}
 
 export function SubscriptionPricing(){
-  const params=useSearchParams();
   const[plans,setPlans]=useState<any[]>([]);
-  const[selectedSlug,setSelectedSlug]=useState(params.get('plan')||'');
-  const[billing,setBilling]=useState<'monthly'|'yearly'>(params.get('billing')==='yearly'?'yearly':'monthly');
+  const[selectedSlug,setSelectedSlug]=useState('');
+  const[billing,setBilling]=useState<'monthly'|'yearly'>('monthly');
+  const[initialized,setInitialized]=useState(false);
   const choiceRef=useRef<HTMLDivElement|null>(null);
-  useEffect(()=>{api('/marketing/public/plans').then(setPlans).catch(()=>{})},[]);
+
+  useEffect(()=>{
+    api('/marketing/public/plans').then(setPlans).catch(()=>{});
+    const params=new URLSearchParams(window.location.search);
+    setSelectedSlug(params.get('plan')||'');
+    setBilling(params.get('billing')==='yearly'?'yearly':'monthly');
+    setInitialized(true);
+  },[]);
+
   const displayPlans=plans.length?plans:fallbackPlans;
   const selected=useMemo(()=>displayPlans.find((p:any)=>String(p.slug||p.name).toLowerCase()===selectedSlug.toLowerCase()),[displayPlans,selectedSlug]);
 
-  useEffect(()=>{if(params.get('plan')&&selected)setTimeout(()=>choiceRef.current?.scrollIntoView({behavior:'smooth',block:'center'}),150)},[selected,params]);
-  function choose(plan:any){setSelectedSlug(plan.slug||plan.name);setBilling('monthly');setTimeout(()=>choiceRef.current?.scrollIntoView({behavior:'smooth',block:'center'}),50)}
+  useEffect(()=>{
+    if(initialized&&selectedSlug&&selected){
+      const timer=setTimeout(()=>choiceRef.current?.scrollIntoView({behavior:'smooth',block:'center'}),150);
+      return()=>clearTimeout(timer);
+    }
+  },[initialized,selectedSlug,selected]);
+
+  function choose(plan:any){
+    setSelectedSlug(plan.slug||plan.name);
+    setBilling('monthly');
+    setTimeout(()=>choiceRef.current?.scrollIntoView({behavior:'smooth',block:'center'}),50);
+  }
 
   return <>
     <section className="section"><div className="publicContainer"><div className="subscriptionSteps"><span className="active">1. Pack</span><span>2. Périodicité</span><span>3. Conditions</span><span>4. Souscription</span></div><div className="pricingGrid">{displayPlans.map((plan:any)=>{
