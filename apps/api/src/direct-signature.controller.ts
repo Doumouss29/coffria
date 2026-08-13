@@ -1,6 +1,5 @@
 import { BadRequestException, Body, Controller, NotFoundException, Param, Post, Req } from '@nestjs/common';
-import { IsInt, IsString, Min, MinLength } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsArray, IsString, MinLength } from 'class-validator';
 import { createHash, randomBytes, randomUUID } from 'crypto';
 import * as nodemailer from 'nodemailer';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
@@ -10,8 +9,7 @@ import { StorageService } from './storage.service';
 class DirectSignDto {
   @IsString() @MinLength(2) signatureText!: string;
   @IsString() @MinLength(20) signatureImage!: string;
-  @IsString() @MinLength(20) signatureOverlay!: string;
-  @Type(() => Number) @IsInt() @Min(1) pageNumber!: number;
+  @IsArray() placements!: Array<{ pageNumber: number; signatureOverlay: string }>;
 }
 
 @Controller('signatures/public')
@@ -64,9 +62,9 @@ export class DirectSignatureController {
     if (!['PENDING', 'PARTIALLY_SIGNED'].includes(request.status)) throw new BadRequestException('Cette demande n’est plus signable.');
     if (request.expiresAt && request.expiresAt < new Date()) throw new BadRequestException('Cette demande a expiré.');
     if (request.recipients.some((r: any) => r.order < recipient.order && r.status !== 'SIGNED')) throw new BadRequestException('Le document attend encore une signature précédente.');
+    if (!Array.isArray(dto.placements) || !dto.placements.length) throw new BadRequestException('Ajoutez au moins une signature sur le document.');
 
-    const signatureBytes = this.decodePng(dto.signatureImage, 500_000, 'La signature graphique');
-    const overlayBytes = this.decodePng(dto.signatureOverlay, 2_500_000, 'Le tracé sur le document');
+    const signatureBytes = this.decodePng(dto.signatureImage, 500_000, 'La signature');
     const signedAt = new Date();
     const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim();
     const userAgent = String(req.headers['user-agent'] || '');
@@ -75,12 +73,22 @@ export class DirectSignatureController {
     const pdf = await PDFDocument.load(input);
     const pages = pdf.getPages();
     if (!pages.length) throw new BadRequestException('Le PDF ne contient aucune page.');
-    if (dto.pageNumber > pages.length) throw new BadRequestException('La page sélectionnée n’existe pas dans le document.');
 
-    const targetPage = pages[dto.pageNumber - 1];
-    const overlayPng = await pdf.embedPng(overlayBytes);
-    const { width: pageWidth, height: pageHeight } = targetPage.getSize();
-    targetPage.drawImage(overlayPng, { x: 0, y: 0, width: pageWidth, height: pageHeight });
+    const seen = new Set<number>();
+    const pageNumbers: number[] = [];
+    for (const placement of dto.placements) {
+      const pageNumber = Number(placement?.pageNumber);
+      if (!Number.isInteger(pageNumber) || pageNumber < 1 || pageNumber > pages.length) throw new BadRequestException('Une page de signature est invalide.');
+      if (seen.has(pageNumber)) throw new BadRequestException(`La page ${pageNumber} est présente plusieurs fois.`);
+      seen.add(pageNumber);
+      const overlayBytes = this.decodePng(String(placement.signatureOverlay || ''), 2_500_000, `Le tracé de la page ${pageNumber}`);
+      const overlayPng = await pdf.embedPng(overlayBytes);
+      const targetPage = pages[pageNumber - 1];
+      const { width, height } = targetPage.getSize();
+      targetPage.drawImage(overlayPng, { x: 0, y: 0, width, height });
+      pageNumbers.push(pageNumber);
+    }
+    pageNumbers.sort((a,b)=>a-b);
 
     const signaturePng = await pdf.embedPng(signatureBytes);
     const rawSize = signaturePng.scale(1);
@@ -96,9 +104,9 @@ export class DirectSignatureController {
     proof.drawImage(signaturePng, { x: 68, y: 595, width: proofWidth, height: proofHeight });
     proof.drawText(`Identité déclarée : ${recipient.name} <${recipient.email}>`, { x: 68, y: 575, size: 9, font });
     proof.drawText(`Date UTC : ${signedAt.toISOString()}`, { x: 68, y: 558, size: 9, font });
-    proof.drawText(`Signature manuscrite directe : page ${dto.pageNumber}`, { x: 48, y: 515, size: 8, font, color: rgb(0.35, 0.39, 0.48) });
+    proof.drawText(`Pages signées : ${pageNumbers.join(', ')}`, { x: 48, y: 515, size: 8, font, color: rgb(0.35, 0.39, 0.48) });
     proof.drawText(`Adresse IP : ${ip || 'non disponible'}`, { x: 48, y: 495, size: 8, font, color: rgb(0.35, 0.39, 0.48) });
-    proof.drawText('Le tracé a été dessiné directement sur la page affichée puis fusionné avec le PDF aux mêmes coordonnées relatives.', { x: 48, y: 455, size: 8, font, color: rgb(0.35, 0.39, 0.48), maxWidth: 490, lineHeight: 12 });
+    proof.drawText('Les tracés ont été dessinés ou apposés directement sur les pages sélectionnées puis fusionnés avec le PDF aux mêmes coordonnées relatives.', { x: 48, y: 455, size: 8, font, color: rgb(0.35, 0.39, 0.48), maxWidth: 490, lineHeight: 12 });
 
     const bytes = Buffer.from(await pdf.save());
     const digest = createHash('sha256').update(bytes).digest('hex');
@@ -118,7 +126,7 @@ export class DirectSignatureController {
         technicalNumber: `COF-${new Date().getFullYear()}-${id.slice(0, 8).toUpperCase()}`,
         name: finalName, extension: 'pdf', mimeType: 'application/pdf', sizeBytes: BigInt(bytes.length), storageKey: finalKey,
         checksumSha256: digest, status: 'ACTIVE', createdById: request.createdById,
-        metadata: { signedByCoffria: true, signatureRequestId: request.id, completedAt: signedAt.toISOString(), signatureMode: 'DIRECT_PAGE_INK' },
+        metadata: { signedByCoffria: true, signatureRequestId: request.id, completedAt: signedAt.toISOString(), signatureMode: 'DIRECT_MULTI_PAGE_INK', signedPages: pageNumbers },
       } });
       finalDocumentId = finalDoc.id;
     }
@@ -126,7 +134,7 @@ export class DirectSignatureController {
     await this.db.$transaction([
       this.db.signatureRecipient.update({ where: { id: recipient.id }, data: {
         status: 'SIGNED', signedAt, signatureText: dto.signatureText.trim(), ipAddress: ip || null, userAgent: userAgent || null,
-        evidence: { tokenHash: recipient.tokenHash, signedAt: signedAt.toISOString(), sha256: digest, signatureType: 'DIRECT_PAGE_INK', pageNumber: dto.pageNumber },
+        evidence: { tokenHash: recipient.tokenHash, signedAt: signedAt.toISOString(), sha256: digest, signatureType: 'DIRECT_MULTI_PAGE_INK', pageNumbers },
       } }),
       this.db.signatureRequest.update({ where: { id: request.id }, data: {
         currentStorageKey: signedKey, status: isFinal ? 'COMPLETED' : 'PARTIALLY_SIGNED', completedAt: isFinal ? signedAt : null, finalDocumentId: finalDocumentId || null,
@@ -134,7 +142,7 @@ export class DirectSignatureController {
       this.db.auditLog.create({ data: {
         tenantId: request.tenantId, action: 'DOCUMENT_SIGNED', entityType: 'SignatureRequest', entityId: request.id,
         ipAddress: ip || null, userAgent: userAgent || null,
-        details: { recipientEmail: recipient.email, order: recipient.order, sha256: digest, signatureType: 'DIRECT_PAGE_INK', pageNumber: dto.pageNumber },
+        details: { recipientEmail: recipient.email, order: recipient.order, sha256: digest, signatureType: 'DIRECT_MULTI_PAGE_INK', pageNumbers },
       } }),
     ]);
 
@@ -143,6 +151,6 @@ export class DirectSignatureController {
       await this.db.signatureRecipient.update({ where: { id: next.id }, data: { tokenHash: this.hash(nextToken) } });
       await this.sendInvitation(next.email, next.name, request.title, nextToken, request.message).catch((e) => console.error('Signature invitation email error', e));
     }
-    return { success: true, completed: isFinal, finalDocumentId };
+    return { success: true, completed: isFinal, finalDocumentId, signedPages: pageNumbers };
   }
 }
