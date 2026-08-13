@@ -74,7 +74,7 @@ export function AppShell({ title, children }: { title: string; children: React.R
         <button className="logout" onClick={logout}><LogOut size={17} /> Déconnexion</button>
       </aside>
       <main className="main">
-        <header className="top"><strong>{title}</strong><span className="muted">{user?.name || 'Utilisateur Coffria'}</span></header>
+        <header className="top"><strong>{title}</strong><span className="muted">{user?.name || 'Utilisateur Coffria'}</span><button type="button" className="mobileLogout" onClick={logout} aria-label="Se déconnecter" title="Déconnexion"><LogOut size={18}/></button></header>
         {children}
       </main>
     </div>
