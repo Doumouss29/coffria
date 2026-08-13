@@ -22,6 +22,25 @@ export class BulkController {
   private canWrite(req: any) { if (req.user.role === 'VIEWER') throw new ForbiddenException('Action interdite'); }
   private canAdmin(req: any) { if (req.user.role !== 'TENANT_ADMIN') throw new ForbiddenException('Action réservée à l’administrateur'); }
   private ids(dto: SelectionDto) { return { documentIds: [...new Set(dto.documentIds || [])], folderIds: [...new Set(dto.folderIds || [])] }; }
+  private accessWhere(req: any): any {
+    if (req.user.role === 'TENANT_ADMIN') return {};
+    return {
+      OR: [
+        { visibility: 'COMPANY' },
+        { createdById: req.user.sub },
+        { userAccesses: { some: { userId: req.user.sub } } },
+        { groupAccesses: { some: { group: { members: { some: { userId: req.user.sub } } } } } },
+      ],
+    };
+  }
+
+  private async assertDocuments(req: any, ids: string[]) {
+    if (!ids.length) return;
+    const count = await this.db.document.count({
+      where: { id: { in: ids }, tenantId: this.tenant(req), deletedAt: null, status: 'ACTIVE', folder: this.accessWhere(req) },
+    });
+    if (count !== ids.length) throw new ForbiddenException('Un ou plusieurs fichiers sélectionnés sont inaccessibles.');
+  }
 
   private async descendants(tenantId: string, rootIds: string[]) {
     const all = new Set(rootIds);
@@ -37,11 +56,16 @@ export class BulkController {
   @Get('folders')
   async folderOptions(@Req() req: any) {
     const tenantId = this.tenant(req);
-    const folders = await this.db.folder.findMany({ where: { tenantId, deletedAt: null }, select: { id: true, parentId: true, name: true }, orderBy: { name: 'asc' } });
+    const folders = await this.db.folder.findMany({
+      where: { tenantId, deletedAt: null, ...this.accessWhere(req) },
+      select: { id: true, parentId: true, name: true }, orderBy: { name: 'asc' },
+    });
+    const allowed = new Set(folders.map((f) => f.id));
     const byParent = new Map<string | null, any[]>();
     for (const folder of folders) {
-      const list = byParent.get(folder.parentId) || [];
-      list.push(folder); byParent.set(folder.parentId, list);
+      const parent = folder.parentId && allowed.has(folder.parentId) ? folder.parentId : null;
+      const list = byParent.get(parent) || [];
+      list.push(folder); byParent.set(parent, list);
     }
     const out: Array<{ id: string; name: string; path: string }> = [];
     const walk = (parentId: string | null, prefix: string) => {
@@ -61,6 +85,12 @@ export class BulkController {
     const tenantId = this.tenant(req);
     const { documentIds, folderIds } = this.ids(dto);
     if (!documentIds.length && !folderIds.length) throw new BadRequestException('Aucun élément sélectionné');
+    await this.assertDocuments(req, documentIds);
+    if (folderIds.length) {
+      this.canAdmin(req);
+      const count = await this.db.folder.count({ where: { tenantId, id: { in: folderIds }, deletedAt: null } });
+      if (count !== folderIds.length) throw new BadRequestException('Un dossier sélectionné est introuvable.');
+    }
     const folderTree = await this.descendants(tenantId, folderIds);
     const now = new Date();
     await this.db.$transaction([
@@ -77,10 +107,16 @@ export class BulkController {
     const { documentIds, folderIds } = this.ids(dto);
     const targetFolderId = dto.targetFolderId || null;
     if (!documentIds.length && !folderIds.length) throw new BadRequestException('Aucun élément sélectionné');
+    await this.assertDocuments(req, documentIds);
+    if (folderIds.length) {
+      this.canAdmin(req);
+      const count = await this.db.folder.count({ where: { tenantId, id: { in: folderIds }, deletedAt: null } });
+      if (count !== folderIds.length) throw new BadRequestException('Un dossier sélectionné est introuvable.');
+    }
     if (documentIds.length && !targetFolderId) throw new BadRequestException('Les fichiers doivent être déplacés dans un dossier.');
     if (targetFolderId) {
-      const target = await this.db.folder.findFirst({ where: { id: targetFolderId, tenantId, deletedAt: null } });
-      if (!target) throw new BadRequestException('Dossier de destination introuvable');
+      const target = await this.db.folder.findFirst({ where: { id: targetFolderId, tenantId, deletedAt: null, ...this.accessWhere(req) } });
+      if (!target) throw new ForbiddenException('Dossier de destination introuvable ou inaccessible');
     }
     if (folderIds.includes(targetFolderId || '')) throw new BadRequestException('Impossible de déplacer un dossier dans lui-même');
     for (const folderId of folderIds) {
