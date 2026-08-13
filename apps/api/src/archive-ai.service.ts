@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
 import { StorageService } from './storage.service';
+import { DocumentConversionService } from './document-conversion.service';
 
 @Injectable()
 export class ArchiveAiService {
-  constructor(private db: PrismaService, private storage: StorageService) {}
+  constructor(private db: PrismaService, private storage: StorageService, private conversion: DocumentConversionService) {}
 
   private ollamaBase() { return (process.env.OLLAMA_BASE_URL || '').replace(/\/$/, ''); }
   private embedModel() { return process.env.OLLAMA_EMBED_MODEL || 'nomic-embed-text'; }
@@ -15,24 +16,19 @@ export class ArchiveAiService {
     if (!base) return null;
     try {
       const response = await fetch(`${base}/api/embed`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: this.embedModel(), input: text }),
-        signal: AbortSignal.timeout(60_000),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: this.embedModel(), input: text }), signal: AbortSignal.timeout(60_000),
       });
       if (!response.ok) return null;
       const json: any = await response.json();
       return Array.isArray(json.embeddings?.[0]) ? json.embeddings[0] : null;
-    } catch {
-      return null;
-    }
+    } catch { return null; }
   }
 
   private chunks(text: string, page?: number | null) {
     const normalized = text.replace(/\u0000/g, '').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
     const out: Array<{ content: string; page: number | null }> = [];
-    const size = 1600;
-    const overlap = 250;
+    const size = 1600, overlap = 250;
     for (let start = 0; start < normalized.length; start += size - overlap) {
       const content = normalized.slice(start, start + size).trim();
       if (content.length >= 60) out.push({ content, page: page ?? null });
@@ -47,27 +43,32 @@ export class ArchiveAiService {
     for (let p = 1; p <= pdf.numPages; p++) {
       const page = await pdf.getPage(p);
       const content = await page.getTextContent();
-      const text = content.items.map((item: any) => item.str || '').join(' ');
-      pages.push({ page: p, text });
+      pages.push({ page: p, text: content.items.map((item: any) => item.str || '').join(' ') });
     }
     return pages;
   }
 
-  private async extract(document: { extension: string | null; mimeType: string; storageKey: string }) {
+  private async extract(document: { id: string; name: string; extension: string | null; mimeType: string; storageKey: string }) {
     const ext = (document.extension || '').toLowerCase();
     const buffer = await this.storage.readBuffer(document.storageKey);
     if (ext === 'pdf' || document.mimeType === 'application/pdf') return this.extractPdf(buffer);
     if (['txt', 'csv', 'json', 'xml', 'md', 'dxf'].includes(ext)) return [{ page: 1, text: buffer.toString('utf8') }];
-    if (ext === 'docx') {
-      const mammoth: any = require('mammoth');
-      const result = await mammoth.extractRawText({ buffer });
-      return [{ page: 1, text: result.value || '' }];
-    }
-    if (['xlsx', 'xls'].includes(ext)) {
-      const XLSX: any = require('xlsx');
-      const workbook = XLSX.read(buffer, { type: 'buffer' });
-      const text = workbook.SheetNames.map((name: string) => `Feuille: ${name}\n${XLSX.utils.sheet_to_csv(workbook.Sheets[name])}`).join('\n\n');
-      return [{ page: 1, text }];
+    if (['docx','doc','xlsx','xls','pptx','ppt','odt','ods','odp'].includes(ext)) {
+      try {
+        const previewKey = await this.conversion.officeToPdf(document);
+        return this.extractPdf(await this.storage.readBuffer(previewKey));
+      } catch {
+        if (ext === 'docx') {
+          const mammoth: any = require('mammoth');
+          const result = await mammoth.extractRawText({ buffer });
+          return [{ page: null, text: result.value || '' }];
+        }
+        if (['xlsx','xls'].includes(ext)) {
+          const XLSX: any = require('xlsx');
+          const workbook = XLSX.read(buffer, { type: 'buffer' });
+          return [{ page: null, text: workbook.SheetNames.map((name: string) => `Feuille: ${name}\n${XLSX.utils.sheet_to_csv(workbook.Sheets[name])}`).join('\n\n') }];
+        }
+      }
     }
     return [];
   }
@@ -89,7 +90,7 @@ export class ArchiveAiService {
       for (const record of records) await tx.archiveChunk.create({ data: record });
       await tx.document.update({ where: { id: documentId }, data: { extractedText: pages.map((p) => p.text).join('\n\n').slice(0, 2_000_000) } });
     });
-    return { indexed: true, chunks: records.length };
+    return { indexed: true, chunks: records.length, pages: pages.length };
   }
 
   private cosine(a: number[], b: number[]) {
@@ -122,13 +123,10 @@ export class ArchiveAiService {
     try {
       const response = await fetch(`${base}/api/chat`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: this.chatModel(), stream: false,
-          messages: [
-            { role: 'system', content: "Tu es l’assistant documentaire Coffria. Réponds uniquement avec les informations présentes dans les sources. Cite chaque affirmation importante avec [n]. Si les sources ne suffisent pas, dis-le clairement. Réponds en français." },
-            { role: 'user', content: `Question: ${question}\n\nSources:\n${context}` },
-          ],
-        }),
+        body: JSON.stringify({ model: this.chatModel(), stream: false, messages: [
+          { role: 'system', content: "Tu es l’assistant documentaire Coffria. Réponds uniquement avec les informations présentes dans les sources. Cite chaque affirmation importante avec [n]. Si les sources ne suffisent pas, dis-le clairement. Réponds en français." },
+          { role: 'user', content: `Question: ${question}\n\nSources:\n${context}` },
+        ] }),
         signal: AbortSignal.timeout(120_000),
       });
       if (!response.ok) throw new Error('ollama');
