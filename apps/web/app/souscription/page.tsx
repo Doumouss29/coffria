@@ -1,4 +1,3 @@
-'use client';
 import { Suspense } from 'react';
 import PublicHeader from '../../components/PublicHeader';
 import PublicFooter from '../../components/PublicFooter';
