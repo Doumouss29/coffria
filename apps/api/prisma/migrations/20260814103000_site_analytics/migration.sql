@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS site_analytics_events (
   country_code VARCHAR(8),
   region VARCHAR(160),
   city VARCHAR(160),
+  timezone VARCHAR(100),
   latitude DOUBLE PRECISION,
   longitude DOUBLE PRECISION,
   ip_hash VARCHAR(64),
@@ -23,4 +24,4 @@ CREATE INDEX IF NOT EXISTS idx_site_analytics_created_at ON site_analytics_event
 CREATE INDEX IF NOT EXISTS idx_site_analytics_event_path ON site_analytics_events(event_type, path, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_site_analytics_visitor ON site_analytics_events(visitor_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_site_analytics_session ON site_analytics_events(session_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_site_analytics_geo ON site_analytics_events(country_code, city, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_site_analytics_geo ON site_analytics_events(country_code, region, city, created_at DESC);
