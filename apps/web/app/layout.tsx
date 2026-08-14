@@ -6,6 +6,7 @@ import './mobile-explorer.css';
 import './viewer-fixes.css';
 import './viewer-mobile.css';
 import './pricing-legal.css';
+import AnalyticsTracker from '../components/AnalyticsTracker';
 
 export const metadata = {
   title: 'Coffria',
@@ -15,7 +16,7 @@ export const metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr">
-      <body>{children}</body>
+      <body><AnalyticsTracker />{children}</body>
     </html>
   );
 }

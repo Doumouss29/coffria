@@ -27,6 +27,7 @@ import { DirectSignatureController } from './direct-signature.controller';
 import { SignatureSubscriptionController } from './signature-subscription.controller';
 import { SignatureWorkspaceController } from './signature-workspace.controller';
 import { AiController } from './ai.controller';
+import { AnalyticsController } from './analytics.controller';
 import { ArchiveAiService } from './archive-ai.service';
 import { DocumentConversionService } from './document-conversion.service';
 import { UploadCleanupService } from './upload-cleanup.service';
@@ -62,6 +63,7 @@ import { UploadCleanupService } from './upload-cleanup.service';
     SignatureSubscriptionController,
     SignatureWorkspaceController,
     AiController,
+    AnalyticsController,
   ],
   providers: [
     PrismaService,

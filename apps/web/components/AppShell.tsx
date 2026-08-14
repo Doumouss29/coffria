@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Bot, Building2, FileSignature, FileText, Folder, LayoutDashboard, LogOut, Megaphone, Settings, ShieldCheck, Trash2, Users, UsersRound } from 'lucide-react';
+import { BarChart3, Bot, Building2, FileSignature, FileText, Folder, LayoutDashboard, LogOut, Megaphone, Settings, ShieldCheck, Trash2, Users, UsersRound } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../lib/api';
 
@@ -60,6 +60,7 @@ export function AppShell({ title, children }: { title: string; children: React.R
     if (user?.role === 'SUPER_ADMIN') {
       return [
         { href: '/admin/tenants', label: 'Entreprises clientes', icon: Building2 },
+        { href: '/admin/statistiques', label: 'Statistiques du site', icon: BarChart3 },
         { href: '/admin/marketing', label: 'Vitrine & Marketing', icon: Megaphone },
         { href: '/admin/conditions', label: 'Conditions de vente', icon: FileText },
         { href: '/admin/superadmins', label: 'Super Admins', icon: ShieldCheck },
