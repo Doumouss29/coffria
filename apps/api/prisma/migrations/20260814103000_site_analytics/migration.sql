@@ -1,3 +1,4 @@
+-- Statistiques first-party du site public Coffria.
 CREATE TABLE IF NOT EXISTS site_analytics_events (
   id BIGSERIAL PRIMARY KEY,
   event_type VARCHAR(20) NOT NULL,
