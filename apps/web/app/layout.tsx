@@ -6,6 +6,7 @@ import './mobile-explorer.css';
 import './viewer-fixes.css';
 import './viewer-mobile.css';
 import './pricing-legal.css';
+import './mobile-shell.css';
 import AnalyticsTracker from '../components/AnalyticsTracker';
 
 export const metadata = {

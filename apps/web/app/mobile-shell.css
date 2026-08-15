@@ -1,0 +1,26 @@
+/* Navigation mobile globale : conserve les outils d'administration accessibles sur petits écrans. */
+.mobileMenuButton,.mobileLogout,.mobileNavDrawer,.mobileNavBackdrop{display:none}
+.mobileTopLeft{display:flex;align-items:center;gap:12px;min-width:0}
+
+@media(max-width:850px){
+  .top{height:64px;padding:0 14px;gap:10px;position:sticky;top:0;z-index:35}
+  .mobileMenuButton,.mobileLogout{display:grid;place-items:center;width:42px;height:42px;min-width:42px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--navy);padding:0}
+  .mobileTopLeft{flex:1;min-width:0}
+  .mobileTopLeft strong{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .topUserName{display:none}
+
+  .mobileNavBackdrop{display:block;position:fixed;inset:0;z-index:998;background:#07132980;backdrop-filter:blur(2px)}
+  .mobileNavDrawer{display:flex;position:fixed;z-index:999;left:0;top:0;bottom:0;width:min(86vw,330px);padding:24px 18px calc(18px + env(safe-area-inset-bottom));background:linear-gradient(180deg,var(--navy2),var(--navy));color:#fff;flex-direction:column;transform:translateX(-104%);transition:transform .22s ease;box-shadow:18px 0 45px #07132945;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .mobileNavDrawer.open{transform:translateX(0)}
+  .mobileNavDrawer .brand{color:#fff;font-size:30px;padding-right:46px}
+  .mobileNavDrawer .seller{color:#aebbd0}
+  .mobileNavDrawer .nav{margin-top:28px;display:grid;gap:7px}
+  .mobileNavDrawer .nav a{display:flex;align-items:center;gap:10px;color:#dce5f3;text-decoration:none;padding:13px;border-radius:10px;min-height:48px}
+  .mobileNavDrawer .nav a.active,.mobileNavDrawer .nav a:hover{background:#ffffff14;border-left:3px solid var(--orange)}
+  .mobileNavDrawer .logout{margin-top:auto;color:#dce5f3;background:transparent;border:1px solid #ffffff24;border-radius:9px;padding:12px;display:flex;align-items:center;justify-content:center;gap:8px;min-height:48px}
+  .mobileNavClose{position:absolute;right:14px;top:14px;width:42px;height:42px;display:grid;place-items:center;border:1px solid #ffffff2b;border-radius:10px;background:#ffffff10;color:#fff;padding:0}
+
+  .content{padding:16px 14px 24px}
+  .content h1{font-size:28px}
+  .pageTitle{align-items:flex-start;flex-direction:column}
+}

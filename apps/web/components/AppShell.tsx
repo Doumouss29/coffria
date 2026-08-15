@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { BarChart3, Bot, Building2, FileSignature, FileText, Folder, LayoutDashboard, LogOut, Megaphone, Settings, ShieldCheck, Trash2, Users, UsersRound } from 'lucide-react';
+import { BarChart3, Bot, Building2, FileSignature, FileText, Folder, LayoutDashboard, LogOut, Megaphone, Menu, Settings, ShieldCheck, Trash2, Users, UsersRound, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../lib/api';
 
@@ -21,6 +21,7 @@ export function AppShell({ title, children }: { title: string; children: React.R
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('coffria_token');
@@ -42,6 +43,15 @@ export function AppShell({ title, children }: { title: string; children: React.R
       }).catch(() => undefined);
     }
   }, [router]);
+
+  useEffect(() => { setMobileNavOpen(false); }, [pathname]);
+
+  useEffect(() => {
+    if (!mobileNavOpen) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previous; };
+  }, [mobileNavOpen]);
 
   useEffect(() => {
     if (user?.signatureEnabled !== false) return;
@@ -81,22 +91,38 @@ export function AppShell({ title, children }: { title: string; children: React.R
     router.replace('/connexion');
   }
 
+  const navigation = <>
+    <div className="brand">Coffr<span>i</span>a</div>
+    <div className="seller">Une solution LMurbs</div>
+    <nav className="nav">
+      {links.map(({ href, label, icon: Icon }) => (
+        <Link key={href} href={href} className={pathname === href || pathname.startsWith(`${href}/`) ? 'active' : ''}>
+          <Icon size={18} /> {label}
+        </Link>
+      ))}
+    </nav>
+    <button className="logout" onClick={logout}><LogOut size={17} /> Déconnexion</button>
+  </>;
+
   return (
     <div className="shell">
-      <aside className="side">
-        <div className="brand">Coffr<span>i</span>a</div>
-        <div className="seller">Une solution LMurbs</div>
-        <nav className="nav">
-          {links.map(({ href, label, icon: Icon }) => (
-            <Link key={href} href={href} className={pathname === href || pathname.startsWith(`${href}/`) ? 'active' : ''}>
-              <Icon size={18} /> {label}
-            </Link>
-          ))}
-        </nav>
-        <button className="logout" onClick={logout}><LogOut size={17} /> Déconnexion</button>
+      <aside className="side">{navigation}</aside>
+
+      {mobileNavOpen && <div className="mobileNavBackdrop" onClick={() => setMobileNavOpen(false)} aria-hidden="true" />}
+      <aside className={`mobileNavDrawer ${mobileNavOpen ? 'open' : ''}`} aria-hidden={!mobileNavOpen}>
+        <button className="mobileNavClose" type="button" onClick={() => setMobileNavOpen(false)} aria-label="Fermer le menu"><X size={22}/></button>
+        {navigation}
       </aside>
+
       <main className="main">
-        <header className="top"><strong>{title}</strong><span className="muted">{user?.name || 'Utilisateur Coffria'}</span><button type="button" className="mobileLogout" onClick={logout} aria-label="Se déconnecter" title="Déconnexion"><LogOut size={18}/></button></header>
+        <header className="top">
+          <div className="mobileTopLeft">
+            <button type="button" className="mobileMenuButton" onClick={() => setMobileNavOpen(true)} aria-label="Ouvrir le menu" title="Menu"><Menu size={21}/></button>
+            <strong>{title}</strong>
+          </div>
+          <span className="muted topUserName">{user?.name || 'Utilisateur Coffria'}</span>
+          <button type="button" className="mobileLogout" onClick={logout} aria-label="Se déconnecter" title="Déconnexion"><LogOut size={18}/></button>
+        </header>
         {quotaReached && pathname.startsWith('/signatures') && <div className="alert error subscriptionAlert">Quota de signatures atteint : {user.signatureUsageUsed} / {user.signatureUsageLimit}. Contactez votre administrateur pour augmenter ou réinitialiser le quota.</div>}
         {children}
       </main>
