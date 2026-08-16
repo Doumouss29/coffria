@@ -13,25 +13,108 @@
   .side{display:none!important}
   .main{width:100%;min-width:0}
   .top{height:64px;padding:0 14px;gap:10px;position:sticky;top:0;z-index:35}
-  .mobileMenuButton,.mobileLogout{display:grid;place-items:center;width:42px;height:42px;min-width:42px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--navy);padding:0}
+  .mobileMenuButton,.mobileLogout{display:grid;place-items:center;width:42px;height:42px;min-width:42px;border:1px solid var(--line);border-radius:10px;background:#fff;color:#14213d;padding:0}
   .mobileTopLeft{flex:1;min-width:0}
   .mobileTopLeft strong{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .topUserName{display:none}
 
-  .mobileNavBackdrop{display:block;position:fixed;inset:0;z-index:998;background:#07132980;backdrop-filter:blur(2px)}
-  .mobileNavDrawer{display:flex;position:fixed;z-index:999;left:0;top:0;bottom:0;width:min(86vw,330px);padding:24px 18px calc(18px + env(safe-area-inset-bottom));background:linear-gradient(180deg,var(--navy2),var(--navy));color:#fff;flex-direction:column;transform:translateX(-104%);transition:transform .22s ease;box-shadow:18px 0 45px #07132945;overflow-y:auto;-webkit-overflow-scrolling:touch}
-  .mobileNavDrawer.open{transform:translateX(0)}
-  .mobileNavDrawer .brand{color:#fff;font-size:30px;padding-right:46px}
-  .mobileNavDrawer .seller{color:#aebbd0}
-  .mobileNavDrawer .nav{margin-top:28px;display:grid;gap:7px}
-  .mobileNavDrawer .nav a{display:flex;align-items:center;gap:10px;color:#dce5f3;text-decoration:none;padding:13px;border-radius:10px;min-height:48px}
-  .mobileNavDrawer .nav a.active,.mobileNavDrawer .nav a:hover{background:#ffffff14;border-left:3px solid var(--orange)}
-  .mobileNavDrawer .logout{margin-top:auto;color:#dce5f3;background:transparent;border:1px solid #ffffff24;border-radius:9px;padding:12px;display:flex;align-items:center;justify-content:center;gap:8px;min-height:48px}
-  .mobileNavClose{position:absolute;right:14px;top:14px;width:42px;height:42px;display:grid;place-items:center;border:1px solid #ffffff2b;border-radius:10px;background:#ffffff10;color:#fff;padding:0}
+  /* Le menu est un vrai tiroir superposé : il ne doit jamais participer au flux de la page. */
+  .mobileNavBackdrop{
+    display:block!important;
+    position:fixed!important;
+    inset:0!important;
+    width:100vw!important;
+    height:100dvh!important;
+    z-index:2147483000!important;
+    background:rgba(7,19,41,.58)!important;
+    backdrop-filter:blur(2px);
+  }
+  .mobileNavDrawer{
+    display:flex!important;
+    position:fixed!important;
+    inset:0 auto 0 0!important;
+    width:min(88vw,360px)!important;
+    max-width:360px!important;
+    height:100dvh!important;
+    min-height:100dvh!important;
+    margin:0!important;
+    padding:24px 18px calc(18px + env(safe-area-inset-bottom))!important;
+    z-index:2147483001!important;
+    flex-direction:column!important;
+    overflow-y:auto!important;
+    overflow-x:hidden!important;
+    -webkit-overflow-scrolling:touch;
+    transform:translateX(-104%);
+    transition:transform .22s ease;
+    background:linear-gradient(180deg,#0d1b2a 0%,#14213d 100%)!important;
+    color:#fff!important;
+    box-shadow:18px 0 45px rgba(7,19,41,.35)!important;
+    border:0!important;
+    border-radius:0!important;
+    opacity:1!important;
+    isolation:isolate;
+  }
+  .mobileNavDrawer.open{transform:translateX(0)!important}
+  .mobileNavDrawer .brand{color:#fff!important;font-size:30px;padding-right:46px}
+  .mobileNavDrawer .brand span{color:#d07b35!important}
+  .mobileNavDrawer .seller{color:#aebbd0!important}
+  .mobileNavDrawer .nav{margin-top:28px;display:grid;gap:7px;width:100%}
+  .mobileNavDrawer .nav a{
+    display:flex!important;
+    align-items:center;
+    gap:10px;
+    width:100%;
+    min-height:48px;
+    padding:13px!important;
+    border-radius:10px;
+    color:#dce5f3!important;
+    background:transparent!important;
+    text-decoration:none!important;
+  }
+  .mobileNavDrawer .nav a.active,.mobileNavDrawer .nav a:hover{
+    background:rgba(255,255,255,.08)!important;
+    border-left:3px solid #d07b35!important;
+    color:#fff!important;
+  }
+  .mobileNavDrawer .logout{
+    margin-top:auto!important;
+    min-height:48px;
+    width:100%;
+    color:#dce5f3!important;
+    background:transparent!important;
+    border:1px solid rgba(255,255,255,.14)!important;
+    border-radius:9px;
+    padding:12px;
+    display:flex!important;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+  }
+  .mobileNavClose{
+    position:absolute!important;
+    right:14px;
+    top:14px;
+    width:42px;
+    height:42px;
+    display:grid!important;
+    place-items:center;
+    border:1px solid rgba(255,255,255,.17)!important;
+    border-radius:10px;
+    background:rgba(255,255,255,.06)!important;
+    color:#fff!important;
+    padding:0;
+  }
 }
 
 @media(max-width:850px){
   .content{padding:16px 14px 24px}
   .content h1{font-size:28px}
   .pageTitle{align-items:flex-start;flex-direction:column}
+
+  /* Sur téléphone, garder un tiroir compact et laisser visible une partie de la page derrière. */
+  .mobileNavDrawer{width:min(86vw,330px)!important;max-width:330px!important}
+}
+
+@media(prefers-reduced-motion:reduce){
+  .mobileNavDrawer{transition:none!important}
 }
