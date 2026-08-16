@@ -1,9 +1,13 @@
-import { Body, Controller, ForbiddenException, Get, Patch, Req, UseGuards } from '@nestjs/common';
-import { IsString } from 'class-validator';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Patch, Req, UseGuards } from '@nestjs/common';
+import { IsBoolean, IsOptional, IsString } from 'class-validator';
 import { JwtGuard } from './jwt.guard';
 import { PrismaService } from './prisma.service';
 
-class UpdateTenantDto { @IsString() name!: string; }
+class UpdateTenantDto {
+  @IsString() name!: string;
+  @IsOptional() @IsBoolean() mfaAllowTotp?: boolean;
+  @IsOptional() @IsBoolean() mfaAllowEmail?: boolean;
+}
 
 @Controller('settings')
 @UseGuards(JwtGuard)
@@ -19,13 +23,33 @@ export class SettingsController {
   get(@Req() req: any) {
     return this.db.tenant.findUniqueOrThrow({
       where: { id: this.tenant(req) },
-      select: { id: true, name: true, slug: true, storageQuotaBytes: true, maxUsers: true, maxFileSizeBytes: true, active: true },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        storageQuotaBytes: true,
+        maxUsers: true,
+        maxFileSizeBytes: true,
+        active: true,
+        mfaAllowTotp: true,
+        mfaAllowEmail: true,
+      },
     });
   }
 
   @Patch()
   update(@Req() req: any, @Body() dto: UpdateTenantDto) {
     if (!['SUPER_ADMIN', 'TENANT_ADMIN'].includes(req.user.role)) throw new ForbiddenException();
-    return this.db.tenant.update({ where: { id: this.tenant(req) }, data: { name: dto.name.trim() } });
+    const allowTotp = dto.mfaAllowTotp !== false;
+    const allowEmail = dto.mfaAllowEmail !== false;
+    if (!allowTotp && !allowEmail) throw new BadRequestException('Au moins une méthode de double authentification doit rester autorisée.');
+    return this.db.tenant.update({
+      where: { id: this.tenant(req) },
+      data: {
+        name: dto.name.trim(),
+        ...(dto.mfaAllowTotp !== undefined ? { mfaAllowTotp: dto.mfaAllowTotp } : {}),
+        ...(dto.mfaAllowEmail !== undefined ? { mfaAllowEmail: dto.mfaAllowEmail } : {}),
+      },
+    });
   }
 }
