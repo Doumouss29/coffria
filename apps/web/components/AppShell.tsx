@@ -50,7 +50,14 @@ export function AppShell({ title, children }: { title: string; children: React.R
     if (!mobileNavOpen) return;
     const previous = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = previous; };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMobileNavOpen(false);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.body.style.overflow = previous;
+      window.removeEventListener('keydown', closeOnEscape);
+    };
   }, [mobileNavOpen]);
 
   useEffect(() => {
@@ -108,11 +115,13 @@ export function AppShell({ title, children }: { title: string; children: React.R
     <div className="shell">
       <aside className="side">{navigation}</aside>
 
-      {mobileNavOpen && <div className="mobileNavBackdrop" onClick={() => setMobileNavOpen(false)} aria-hidden="true" />}
-      <aside className={`mobileNavDrawer ${mobileNavOpen ? 'open' : ''}`} aria-hidden={!mobileNavOpen}>
-        <button className="mobileNavClose" type="button" onClick={() => setMobileNavOpen(false)} aria-label="Fermer le menu"><X size={22}/></button>
-        {navigation}
-      </aside>
+      {mobileNavOpen && <>
+        <div className="mobileNavBackdrop" onClick={() => setMobileNavOpen(false)} aria-hidden="true" />
+        <aside className="mobileNavDrawer open" aria-label="Navigation principale">
+          <button className="mobileNavClose" type="button" onClick={() => setMobileNavOpen(false)} aria-label="Fermer le menu"><X size={22}/></button>
+          {navigation}
+        </aside>
+      </>}
 
       <main className="main">
         <header className="top">
