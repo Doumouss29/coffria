@@ -1,8 +1,17 @@
-/* Navigation mobile globale : conserve les outils d'administration accessibles sur petits écrans. */
+/* Navigation mobile/tablette globale : conserve les outils d'administration accessibles sur petits écrans. */
 .mobileMenuButton,.mobileLogout,.mobileNavDrawer,.mobileNavBackdrop{display:none}
 .mobileTopLeft{display:flex;align-items:center;gap:12px;min-width:0}
 
-@media(max-width:850px){
+/*
+ * Le shell desktop à deux colonnes devient instable sur certaines tablettes
+ * (notamment Android en portrait) : la sidebar peut se retrouver au-dessus du
+ * contenu et réserver plusieurs centaines de pixels. On bascule donc le shell
+ * vers la navigation compacte jusqu'à 1100 px.
+ */
+@media(max-width:1100px){
+  .shell{display:block;min-height:100vh}
+  .side{display:none!important}
+  .main{width:100%;min-width:0}
   .top{height:64px;padding:0 14px;gap:10px;position:sticky;top:0;z-index:35}
   .mobileMenuButton,.mobileLogout{display:grid;place-items:center;width:42px;height:42px;min-width:42px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--navy);padding:0}
   .mobileTopLeft{flex:1;min-width:0}
@@ -19,7 +28,9 @@
   .mobileNavDrawer .nav a.active,.mobileNavDrawer .nav a:hover{background:#ffffff14;border-left:3px solid var(--orange)}
   .mobileNavDrawer .logout{margin-top:auto;color:#dce5f3;background:transparent;border:1px solid #ffffff24;border-radius:9px;padding:12px;display:flex;align-items:center;justify-content:center;gap:8px;min-height:48px}
   .mobileNavClose{position:absolute;right:14px;top:14px;width:42px;height:42px;display:grid;place-items:center;border:1px solid #ffffff2b;border-radius:10px;background:#ffffff10;color:#fff;padding:0}
+}
 
+@media(max-width:850px){
   .content{padding:16px 14px 24px}
   .content h1{font-size:28px}
   .pageTitle{align-items:flex-start;flex-direction:column}
