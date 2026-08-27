@@ -8,16 +8,11 @@ export async function api(
   path: string,
   init: RequestInit = {},
 ) {
-  const token =
-    typeof window !== 'undefined'
-      ? localStorage.getItem('coffria_token')
-      : null;
-
   const response = await fetch(`${base}${path}`, {
     ...init,
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...init.headers,
     },
   });
