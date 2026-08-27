@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Headers, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { IsBoolean, IsEmail, IsOptional, IsString, Length, MinLength } from 'class-validator';
+import type { Response } from 'express';
 import { AuthService } from './auth.service';
 import { JwtGuard } from './jwt.guard';
 
@@ -34,9 +35,39 @@ class AccountEmailConfirmDto { @IsString() setupToken!: string; @IsString() @Len
 export class AuthController {
   constructor(private auth: AuthService) {}
 
+  private cookie(req: any, name: string) {
+    const raw = String(req.headers?.cookie || '');
+    for (const part of raw.split(';')) {
+      const [key, ...rest] = part.trim().split('=');
+      if (key === name) return decodeURIComponent(rest.join('='));
+    }
+    return undefined;
+  }
+
+  private cookieOptions(maxAge: number) {
+    return {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict' as const,
+      path: '/',
+      maxAge,
+    };
+  }
+
+  private applySession(res: Response, result: any) {
+    if (!result?.accessToken) return result;
+    res.cookie('coffria_session', result.accessToken, this.cookieOptions(8 * 60 * 60 * 1000));
+    if (result.trustedDeviceToken) {
+      res.cookie('coffria_trusted_device', result.trustedDeviceToken, this.cookieOptions(30 * 24 * 60 * 60 * 1000));
+    }
+    const { accessToken, trustedDeviceToken, ...safe } = result;
+    return { ...safe, authenticated: true };
+  }
+
   @Post('login')
-  login(@Body() dto: LoginDto, @Headers('user-agent') userAgent?: string) {
-    return this.auth.login(dto.email, dto.password, dto.trustedDeviceToken, userAgent);
+  async login(@Body() dto: LoginDto, @Req() req: any, @Res({ passthrough: true }) res: Response, @Headers('user-agent') userAgent?: string) {
+    const trustedDeviceToken = dto.trustedDeviceToken || this.cookie(req, 'coffria_trusted_device');
+    return this.applySession(res, await this.auth.login(dto.email, dto.password, trustedDeviceToken, userAgent));
   }
 
   @Post('mfa/totp/setup')
@@ -45,8 +76,8 @@ export class AuthController {
   }
 
   @Post('mfa/totp/verify')
-  totpVerify(@Body() dto: TotpVerifyDto, @Headers('user-agent') userAgent?: string) {
-    return this.auth.verifyTotpLogin(dto.challengeToken, dto.code, dto.setupToken, Boolean(dto.rememberDevice), userAgent);
+  async totpVerify(@Body() dto: TotpVerifyDto, @Res({ passthrough: true }) res: Response, @Headers('user-agent') userAgent?: string) {
+    return this.applySession(res, await this.auth.verifyTotpLogin(dto.challengeToken, dto.code, dto.setupToken, Boolean(dto.rememberDevice), userAgent));
   }
 
   @Post('mfa/email/send')
@@ -55,13 +86,19 @@ export class AuthController {
   }
 
   @Post('mfa/email/verify')
-  emailVerify(@Body() dto: EmailVerifyDto, @Headers('user-agent') userAgent?: string) {
-    return this.auth.verifyEmailLogin(dto.challengeToken, dto.code, Boolean(dto.rememberDevice), userAgent);
+  async emailVerify(@Body() dto: EmailVerifyDto, @Res({ passthrough: true }) res: Response, @Headers('user-agent') userAgent?: string) {
+    return this.applySession(res, await this.auth.verifyEmailLogin(dto.challengeToken, dto.code, Boolean(dto.rememberDevice), userAgent));
   }
 
   @Post('mfa/recovery/verify')
-  recoveryVerify(@Body() dto: RecoveryVerifyDto, @Headers('user-agent') userAgent?: string) {
-    return this.auth.verifyRecoveryLogin(dto.challengeToken, dto.recoveryCode, Boolean(dto.rememberDevice), userAgent);
+  async recoveryVerify(@Body() dto: RecoveryVerifyDto, @Res({ passthrough: true }) res: Response, @Headers('user-agent') userAgent?: string) {
+    return this.applySession(res, await this.auth.verifyRecoveryLogin(dto.challengeToken, dto.recoveryCode, Boolean(dto.rememberDevice), userAgent));
+  }
+
+  @Post('logout')
+  logout(@Res({ passthrough: true }) res: Response) {
+    res.clearCookie('coffria_session', { path: '/' });
+    return { success: true };
   }
 
   @Get('mfa/status')
@@ -102,7 +139,8 @@ export class AuthController {
 
   @Post('mfa/trusted-devices/revoke')
   @UseGuards(JwtGuard)
-  revokeTrusted(@Req() req: any) {
+  revokeTrusted(@Req() req: any, @Res({ passthrough: true }) res: Response) {
+    res.clearCookie('coffria_trusted_device', { path: '/' });
     return this.auth.revokeTrustedDevices(req.user.sub);
   }
 
