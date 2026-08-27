@@ -21,9 +21,11 @@ export default function LoginPage() {
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
 
   function completeSession(d: any) {
-    localStorage.setItem('coffria_token', d.accessToken);
+    // Le JWT et le jeton d'appareil de confiance sont désormais conservés
+    // uniquement dans des cookies HttpOnly créés par l'API.
+    localStorage.removeItem('coffria_token');
+    localStorage.removeItem('coffria_trusted_device');
     localStorage.setItem('coffria_user', JSON.stringify(d.user));
-    if (d.trustedDeviceToken) localStorage.setItem('coffria_trusted_device', d.trustedDeviceToken);
     router.push(d.user.role === 'SUPER_ADMIN' ? '/admin/tenants' : '/explorer');
   }
 
@@ -43,9 +45,9 @@ export default function LoginPage() {
       setBusy(true); setError(''); setMessage('');
       const d = await api('/auth/login', {
         method: 'POST',
-        body: JSON.stringify({ email, password, trustedDeviceToken: localStorage.getItem('coffria_trusted_device') || undefined }),
+        body: JSON.stringify({ email, password }),
       });
-      if (d.accessToken) { completeSession(d); return; }
+      if (d.user && d.authenticated) { completeSession(d); return; }
       setChallenge(d);
       setStage('mfa');
     } catch (e: any) { setError(e.message); }
