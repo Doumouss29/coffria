@@ -24,12 +24,20 @@ export function AppShell({ title, children }: { title: string; children: React.R
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem('coffria_token');
-    if (!token) { router.replace('/connexion'); return; }
     const raw = localStorage.getItem('coffria_user');
-    if (!raw) return;
+    if (!raw) { router.replace('/connexion'); return; }
     const current = JSON.parse(raw);
     setUser(current);
+
+    // Le cookie HttpOnly n'est pas lisible en JavaScript : on valide la
+    // session auprès de l'API au chargement de l'espace authentifié.
+    api('/auth/mfa/status').catch(() => {
+      localStorage.removeItem('coffria_user');
+      localStorage.removeItem('coffria_token');
+      localStorage.removeItem('coffria_trusted_device');
+      router.replace('/connexion');
+    });
+
     if (current.role !== 'SUPER_ADMIN' && current.tenantId) {
       api('/signature-subscription').then((subscription) => {
         const refreshed = {
@@ -92,8 +100,10 @@ export function AppShell({ title, children }: { title: string; children: React.R
 
   const quotaReached = user?.signatureEnabled !== false && user?.signatureUsageLimit != null && Number(user.signatureUsageUsed || 0) >= Number(user.signatureUsageLimit);
 
-  function logout() {
+  async function logout() {
+    await api('/auth/logout', { method: 'POST' }).catch(() => undefined);
     localStorage.removeItem('coffria_token');
+    localStorage.removeItem('coffria_trusted_device');
     localStorage.removeItem('coffria_user');
     router.replace('/connexion');
   }
