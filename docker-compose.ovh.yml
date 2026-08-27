@@ -53,7 +53,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=proxy"
-      - "traefik.http.routers.coffria-api.rule=(Host(`coffria.ci`) || Host(`www.coffria.ci`)) && PathPrefix(`/api`)"
+      - "traefik.http.routers.coffria-api.rule=Host(`coffria.ci`) && PathPrefix(`/api`)"
       - "traefik.http.routers.coffria-api.entrypoints=websecure"
       - "traefik.http.routers.coffria-api.tls=true"
       - "traefik.http.routers.coffria-api.tls.certresolver=letsencrypt"
@@ -75,12 +75,22 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=proxy"
-      - "traefik.http.routers.coffria-web.rule=Host(`coffria.ci`) || Host(`www.coffria.ci`)"
+      - "traefik.http.routers.coffria-web.rule=Host(`coffria.ci`)"
       - "traefik.http.routers.coffria-web.entrypoints=websecure"
       - "traefik.http.routers.coffria-web.tls=true"
       - "traefik.http.routers.coffria-web.tls.certresolver=letsencrypt"
       - "traefik.http.routers.coffria-web.priority=10"
       - "traefik.http.services.coffria-web.loadbalancer.server.port=3000"
+      - "traefik.http.routers.coffria-www.rule=Host(`www.coffria.ci`)"
+      - "traefik.http.routers.coffria-www.entrypoints=websecure"
+      - "traefik.http.routers.coffria-www.tls=true"
+      - "traefik.http.routers.coffria-www.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.coffria-www.priority=200"
+      - "traefik.http.routers.coffria-www.middlewares=coffria-www-redirect"
+      - "traefik.http.routers.coffria-www.service=coffria-web"
+      - "traefik.http.middlewares.coffria-www-redirect.redirectregex.regex=^https?://www\\.coffria\\.ci/(.*)"
+      - "traefik.http.middlewares.coffria-www-redirect.redirectregex.replacement=https://coffria.ci/$${1}"
+      - "traefik.http.middlewares.coffria-www-redirect.redirectregex.permanent=true"
 
 volumes:
   coffria_redis_data:
