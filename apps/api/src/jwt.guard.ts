@@ -6,9 +6,19 @@ import { PrismaService } from './prisma.service';
 export class JwtGuard implements CanActivate {
   constructor(private jwt: JwtService, private db: PrismaService) {}
 
+  private cookie(req: any, name: string) {
+    const raw = String(req.headers?.cookie || '');
+    for (const part of raw.split(';')) {
+      const [key, ...rest] = part.trim().split('=');
+      if (key === name) return decodeURIComponent(rest.join('='));
+    }
+    return '';
+  }
+
   async canActivate(ctx: ExecutionContext) {
     const req = ctx.switchToHttp().getRequest();
-    const token = (req.headers.authorization || '').replace(/^Bearer\s+/, '');
+    const bearer = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+    const token = bearer || this.cookie(req, 'coffria_session');
     if (!token) throw new UnauthorizedException();
     try {
       const payload = await this.jwt.verifyAsync(token);
