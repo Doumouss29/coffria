@@ -18,18 +18,21 @@ export class SearchService {
   private variants(value: string) {
     const clean = value.trim().replace(/[?.!,;:]+$/g, '').trim();
     if (!clean) return [];
+
     const out = new Set<string>([clean]);
     const parts = clean.split(/\s+/);
     const last = parts[parts.length - 1];
+
     if (last.length > 3) {
+      const singularOrPlural = [...parts];
       if (last.toLowerCase().endsWith('s')) {
-        parts[parts.length - 1] = last.slice(0, -1);
-        out.add(parts.join(' '));
+        singularOrPlural[singularOrPlural.length - 1] = last.slice(0, -1);
       } else {
-        parts[parts.length - 1] = `${last}s`;
-        out.add(parts.join(' '));
+        singularOrPlural[singularOrPlural.length - 1] = `${last}s`;
       }
+      out.add(singularOrPlural.join(' '));
     }
+
     return [...out];
   }
 
@@ -42,6 +45,7 @@ export class SearchService {
     if ((m = s.match(/(?:commence|début) par ["']?([^"']+)["']?/i))) f.nameStartsWith = m[1].trim();
     if ((m = s.match(/(?:se termine|finit) par ["']?([^"']+)["']?/i))) f.nameEndsWith = m[1].trim();
     if ((m = s.match(/\b(pdf|docx?|xlsx?|pptx?|zip|jpg|jpeg|png|tiff?|dwg|dxf|txt|csv)\b/i))) f.extension = m[1].toLowerCase();
+
     if ((m = s.match(/(?:plus de|supérieur à)\s*(\d+)\s*(ko|mo|go)/i))) {
       const n = Number(m[1]);
       const u = m[2].toLowerCase();
@@ -54,6 +58,7 @@ export class SearchService {
       /(?:documents?|fichiers?)\s+(?:avec|ayant)\s+(?:le\s+mot|les\s+mots|le\s+terme|les\s+termes)\s+["']?(.+?)["']?$/i,
       /(?:recherche(?:r)?|trouve(?:r)?|affiche(?:r)?)\s+(?:les?\s+)?(?:documents?|fichiers?)\s+(?:qui\s+)?(?:contiennent?|contenant|concernent?|concernant)\s+["']?(.+?)["']?$/i,
     ];
+
     for (const pattern of contentPatterns) {
       const match = s.match(pattern);
       if (match?.[1]?.trim()) {
@@ -67,18 +72,34 @@ export class SearchService {
 
   private folderAccess(user: any) {
     if (user.role === 'TENANT_ADMIN') return undefined;
+
     return {
       OR: [
         { visibility: 'COMPANY' },
         { createdById: user.sub },
         { userAccesses: { some: { userId: user.sub } } },
-        { groupAccesses: { some: { group: { members: { some: { userId: user.sub } } } } },
+        {
+          groupAccesses: {
+            some: {
+              group: {
+                members: {
+                  some: { userId: user.sub },
+                },
+              },
+            },
+          },
+        },
       ],
     };
   }
 
   private buildWhere(user: any, q: string, f: any) {
-    const where: any = { tenantId: user.tenantId, deletedAt: null, status: 'ACTIVE' };
+    const where: any = {
+      tenantId: user.tenantId,
+      deletedAt: null,
+      status: 'ACTIVE',
+    };
+
     const folder = this.folderAccess(user);
     if (folder) where.folder = folder;
     if (f.extension) where.extension = f.extension;
@@ -98,6 +119,7 @@ export class SearchService {
         );
       }
     }
+
     if (ors.length) where.OR = ors;
     return where;
   }
@@ -107,7 +129,10 @@ export class SearchService {
       where: this.buildWhere(user, q, f),
       take: 100,
       orderBy: sort === 'newest' ? { createdAt: 'desc' } : { name: 'asc' },
-      include: { folder: { select: { name: true } }, createdBy: { select: { name: true } } },
+      include: {
+        folder: { select: { name: true } },
+        createdBy: { select: { name: true } },
+      },
     });
   }
 
@@ -117,13 +142,27 @@ export class SearchService {
       deletedAt: null,
       status: 'ACTIVE',
       extractedText: null,
-      extension: { in: ['pdf', 'txt', 'csv', 'json', 'xml', 'md', 'dxf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt', 'odt', 'ods', 'odp'] },
+      extension: {
+        in: ['pdf', 'txt', 'csv', 'json', 'xml', 'md', 'dxf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt', 'odt', 'ods', 'odp'],
+      },
     };
+
     const folder = this.folderAccess(user);
     if (folder) where.folder = folder;
-    const missing = await this.db.document.findMany({ where, select: { id: true }, take: 12, orderBy: { createdAt: 'desc' } });
+
+    const missing = await this.db.document.findMany({
+      where,
+      select: { id: true },
+      take: 12,
+      orderBy: { createdAt: 'desc' },
+    });
+
     if (!missing.length) return 0;
-    await Promise.allSettled(missing.map((document) => this.ai.indexDocument(document.id)));
+
+    await Promise.allSettled(
+      missing.map((document) => this.ai.indexDocument(document.id)),
+    );
+
     return missing.length;
   }
 
@@ -131,9 +170,6 @@ export class SearchService {
     const f = this.parse(q);
     let docs = await this.find(user, q, f, sort);
 
-    // Les anciens documents peuvent avoir été importés avant l'indexation automatique.
-    // Si une recherche textuelle ne donne rien, on indexe un petit lot de documents
-    // accessibles puis on relance immédiatement la recherche.
     if (!docs.length && q.trim()) {
       const indexed = await this.indexMissingAccessibleDocuments(user);
       if (indexed) docs = await this.find(user, q, f, sort);
