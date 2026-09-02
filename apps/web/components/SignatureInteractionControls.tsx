@@ -71,10 +71,12 @@ export default function SignatureInteractionControls() {
 
   useEffect(() => {
     if (!isSignaturePage) return;
+
     const onClick = (event: MouseEvent) => {
       const target = event.target as HTMLElement | null;
       if (target?.closest('.savedSignatureBox button')) setSigningEnabled(true);
     };
+
     document.addEventListener('click', onClick);
     return () => document.removeEventListener('click', onClick);
   }, [isSignaturePage]);
@@ -88,19 +90,26 @@ export default function SignatureInteractionControls() {
     const originalQuadraticCurveTo = prototype.quadraticCurveTo;
     const originalStroke = prototype.stroke;
     const previousPoints = new WeakMap<CanvasRenderingContext2D, { x: number; y: number }>();
+
     const isInkContext = (context: CanvasRenderingContext2D) =>
       context.canvas instanceof HTMLCanvasElement && context.canvas.classList.contains('pdfInkCanvas');
 
-    prototype.moveTo = function moveTo(x: number, y: number) {
+    prototype.moveTo = function moveTo(this: CanvasRenderingContext2D, x: number, y: number) {
       if (isInkContext(this)) previousPoints.set(this, { x, y });
       return originalMoveTo.call(this, x, y);
     };
 
-    prototype.lineTo = function lineTo(x: number, y: number) {
+    prototype.lineTo = function lineTo(this: CanvasRenderingContext2D, x: number, y: number) {
       if (isInkContext(this)) {
         const previous = previousPoints.get(this);
         if (previous) {
-          originalQuadraticCurveTo.call(this, previous.x, previous.y, (previous.x + x) / 2, (previous.y + y) / 2);
+          originalQuadraticCurveTo.call(
+            this,
+            previous.x,
+            previous.y,
+            (previous.x + x) / 2,
+            (previous.y + y) / 2,
+          );
           previousPoints.set(this, { x, y });
           return;
         }
@@ -109,7 +118,7 @@ export default function SignatureInteractionControls() {
       return originalLineTo.call(this, x, y);
     };
 
-    prototype.stroke = function stroke(path?: Path2D) {
+    prototype.stroke = function stroke(this: CanvasRenderingContext2D, path?: Path2D) {
       if (isInkContext(this)) {
         this.lineCap = 'round';
         this.lineJoin = 'round';
@@ -149,9 +158,32 @@ export default function SignatureInteractionControls() {
         </button>
       </div>
       <div className="signatureZoomControls">
-        <button type="button" onClick={() => setZoom((value) => Math.max(MIN_ZOOM, value - ZOOM_STEP))} disabled={zoom <= MIN_ZOOM} aria-label="Dézoomer" title="Dézoomer"><ZoomOut size={17} /></button>
-        <button type="button" className="zoomValue" onClick={() => setZoom(1)} title="Réinitialiser le zoom">{Math.round(zoom * 100)}%</button>
-        <button type="button" onClick={() => setZoom((value) => Math.min(MAX_ZOOM, value + ZOOM_STEP))} disabled={zoom >= MAX_ZOOM} aria-label="Zoomer" title="Zoomer"><ZoomIn size={17} /></button>
+        <button
+          type="button"
+          onClick={() => setZoom((value) => Math.max(MIN_ZOOM, value - ZOOM_STEP))}
+          disabled={zoom <= MIN_ZOOM}
+          aria-label="Dézoomer"
+          title="Dézoomer"
+        >
+          <ZoomOut size={17} />
+        </button>
+        <button
+          type="button"
+          className="zoomValue"
+          onClick={() => setZoom(1)}
+          title="Réinitialiser le zoom"
+        >
+          {Math.round(zoom * 100)}%
+        </button>
+        <button
+          type="button"
+          onClick={() => setZoom((value) => Math.min(MAX_ZOOM, value + ZOOM_STEP))}
+          disabled={zoom >= MAX_ZOOM}
+          aria-label="Zoomer"
+          title="Zoomer"
+        >
+          <ZoomIn size={17} />
+        </button>
       </div>
     </div>
   );
