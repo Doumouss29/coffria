@@ -178,7 +178,10 @@ export default function SignatureInteractionControls() {
       if (isInkContext(this)) {
         this.lineCap = 'round';
         this.lineJoin = 'round';
-        this.lineWidth = Math.max(this.lineWidth, Math.max(2.2, this.canvas.width / 520));
+        const cssWidth = this.canvas.getBoundingClientRect().width;
+        const backingScale = cssWidth ? this.canvas.width / cssWidth : 1;
+        const minimumCssWidth = window.innerWidth <= 900 ? 1.05 : 1.7;
+        this.lineWidth = Math.max(this.lineWidth, minimumCssWidth * backingScale);
       }
       return path ? callOriginalStroke.call(this, path) : callOriginalStroke.call(this);
     } as typeof prototype.stroke;
