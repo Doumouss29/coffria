@@ -89,6 +89,7 @@ export default function SignatureInteractionControls() {
     const originalLineTo = prototype.lineTo;
     const originalQuadraticCurveTo = prototype.quadraticCurveTo;
     const originalStroke = prototype.stroke;
+    const callOriginalStroke = originalStroke as unknown as Function;
     const previousPoints = new WeakMap<CanvasRenderingContext2D, { x: number; y: number }>();
 
     const isInkContext = (context: CanvasRenderingContext2D) =>
@@ -124,8 +125,7 @@ export default function SignatureInteractionControls() {
         this.lineJoin = 'round';
         this.lineWidth = Math.max(this.lineWidth, Math.max(2.2, this.canvas.width / 520));
       }
-      if (path) return originalStroke.call(this, path);
-      return originalStroke.call(this);
+      return path ? callOriginalStroke.call(this, path) : callOriginalStroke.call(this);
     } as typeof prototype.stroke;
 
     return () => {
