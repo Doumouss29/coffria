@@ -13,8 +13,9 @@ function size(value:any){let n=Number(value||0);for(const unit of ['o','Ko','Mo'
 function statusLabel(s:UploadTask['status']){return s==='preparing'?'Préparation…':s==='uploading'?'Téléversement rapide…':s==='finalizing'?'Finalisation…':s==='done'?'Import terminé':'Échec';}
 
 export default function Explorer(){
+  const initialFolderId=typeof window!=='undefined'?new URLSearchParams(window.location.search).get('folderId'):null;
   const [data,setData]=useState<any>({folders:[],documents:[],breadcrumbs:[],quota:{usedBytes:'0',pendingBytes:'0',limitBytes:'1'}});
-  const [folderId,setFolderId]=useState<string|null>(null); const [q,setQ]=useState(''); const [results,setResults]=useState<any>(null);
+  const [folderId,setFolderId]=useState<string|null>(initialFolderId); const [q,setQ]=useState(''); const [results,setResults]=useState<any>(null);
   const [sort,setSort]=useState('name'); const [direction,setDirection]=useState('asc'); const [error,setError]=useState(''); const [notice,setNotice]=useState('');
   const [showFolderModal,setShowFolderModal]=useState(false); const [newFolderName,setNewFolderName]=useState(''); const [visibility,setVisibility]=useState<'COMPANY'|'PRIVATE'|'RESTRICTED'>('COMPANY');
   const [options,setOptions]=useState<any>({users:[],groups:[]}); const [selectedUsers,setSelectedUsers]=useState<string[]>([]); const [selectedGroups,setSelectedGroups]=useState<string[]>([]);
@@ -27,6 +28,7 @@ export default function Explorer(){
   const clearSelection=()=>{setSelectedDocs([]);setSelectedFolders([])};
   const load=useCallback(async()=>{setError('');const p=new URLSearchParams({sort,direction});if(folderId)p.set('folderId',folderId);setData(await api(`/explorer?${p}`));clearSelection();},[folderId,sort,direction]);
   useEffect(()=>{load().catch(e=>setError(e.message));},[load]);
+  useEffect(()=>{const url=new URL(window.location.href);if(folderId)url.searchParams.set('folderId',folderId);else url.searchParams.delete('folderId');window.history.replaceState({},'',`${url.pathname}${url.search}`);},[folderId]);
   useEffect(()=>{
     const close=()=>setActionMenu(null);
     document.addEventListener('pointerdown',close);window.addEventListener('resize',close);window.addEventListener('scroll',close,true);
