@@ -42,6 +42,7 @@ export default function SignatureInteractionControls() {
         canvas.style.pointerEvents = signingEnabled ? 'auto' : 'none';
         canvas.style.touchAction = signingEnabled ? 'none' : 'pan-x pan-y pinch-zoom';
         canvas.style.cursor = signingEnabled ? 'crosshair' : 'grab';
+        canvas.style.imageRendering = 'auto';
         canvas.setAttribute('aria-label', signingEnabled ? 'Zone de signature active' : 'Document en mode navigation');
       });
     };
@@ -76,6 +77,53 @@ export default function SignatureInteractionControls() {
     };
     document.addEventListener('click', onClick);
     return () => document.removeEventListener('click', onClick);
+  }, [isSignaturePage]);
+
+  useEffect(() => {
+    if (!isSignaturePage || typeof CanvasRenderingContext2D === 'undefined') return;
+
+    const prototype = CanvasRenderingContext2D.prototype;
+    const originalMoveTo = prototype.moveTo;
+    const originalLineTo = prototype.lineTo;
+    const originalQuadraticCurveTo = prototype.quadraticCurveTo;
+    const originalStroke = prototype.stroke;
+    const previousPoints = new WeakMap<CanvasRenderingContext2D, { x: number; y: number }>();
+    const isInkContext = (context: CanvasRenderingContext2D) =>
+      context.canvas instanceof HTMLCanvasElement && context.canvas.classList.contains('pdfInkCanvas');
+
+    prototype.moveTo = function moveTo(x: number, y: number) {
+      if (isInkContext(this)) previousPoints.set(this, { x, y });
+      return originalMoveTo.call(this, x, y);
+    };
+
+    prototype.lineTo = function lineTo(x: number, y: number) {
+      if (isInkContext(this)) {
+        const previous = previousPoints.get(this);
+        if (previous) {
+          originalQuadraticCurveTo.call(this, previous.x, previous.y, (previous.x + x) / 2, (previous.y + y) / 2);
+          previousPoints.set(this, { x, y });
+          return;
+        }
+        previousPoints.set(this, { x, y });
+      }
+      return originalLineTo.call(this, x, y);
+    };
+
+    prototype.stroke = function stroke(path?: Path2D) {
+      if (isInkContext(this)) {
+        this.lineCap = 'round';
+        this.lineJoin = 'round';
+        this.lineWidth = Math.max(this.lineWidth, Math.max(2.2, this.canvas.width / 520));
+      }
+      if (path) return originalStroke.call(this, path);
+      return originalStroke.call(this);
+    } as typeof prototype.stroke;
+
+    return () => {
+      prototype.moveTo = originalMoveTo;
+      prototype.lineTo = originalLineTo;
+      prototype.stroke = originalStroke;
+    };
   }, [isSignaturePage]);
 
   if (!isSignaturePage || !toolbar) return null;
