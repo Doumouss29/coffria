@@ -1,0 +1,35 @@
+/* Lisibilité renforcée sur les écrans de bureau sans modifier le rendu mobile. */
+@media (min-width: 1100px) {
+  body { font-size: 16px; }
+
+  .side { padding-left: 20px; padding-right: 20px; }
+  .side .brand { font-size: 32px; }
+  .seller { font-size: 14px; }
+  .nav a { font-size: 16px; padding-top: 13px; padding-bottom: 13px; }
+  .logout { font-size: 15px; }
+
+  .top { font-size: 15px; }
+  .content { padding: 34px 40px; }
+  .content h1 { font-size: 36px; }
+  .muted { font-size: 14.5px; line-height: 1.5; }
+
+  .breadcrumbs { font-size: 15px; }
+  .crumb { font-size: 15px; }
+
+  .toolbar .search,
+  .toolbar .primary,
+  .toolbar .secondary { font-size: 15.5px; min-height: 48px; }
+  .toolbar .search { padding: 14px 16px; }
+
+  .storageLine { font-size: 14px; }
+  .table th { font-size: 14px; padding: 15px 14px; }
+  .table td { font-size: 15.5px; padding: 15px 14px; }
+  .nameButton { font-size: 15.5px; }
+  .status { font-size: 13px; }
+
+  .actionDropdownPortal button,
+  .actionDropdown button { font-size: 15px; }
+
+  .settingsCard,
+  .card { font-size: 15px; }
+}
