@@ -1,9 +1,37 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
+import { ArchiveAiService } from './archive-ai.service';
 
 @Injectable()
 export class SearchService {
-  constructor(private db: PrismaService) {}
+  constructor(private db: PrismaService, private ai: ArchiveAiService) {}
+
+  private normalize(value: string) {
+    return value
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private variants(value: string) {
+    const clean = value.trim().replace(/[?.!,;:]+$/g, '').trim();
+    if (!clean) return [];
+    const out = new Set<string>([clean]);
+    const parts = clean.split(/\s+/);
+    const last = parts[parts.length - 1];
+    if (last.length > 3) {
+      if (last.toLowerCase().endsWith('s')) {
+        parts[parts.length - 1] = last.slice(0, -1);
+        out.add(parts.join(' '));
+      } else {
+        parts[parts.length - 1] = `${last}s`;
+        out.add(parts.join(' '));
+      }
+    }
+    return [...out];
+  }
 
   parse(q: string) {
     const s = q.trim();
@@ -20,9 +48,6 @@ export class SearchService {
       f.minBytes = n * (u === 'go' ? 1073741824 : u === 'mo' ? 1048576 : 1024);
     }
 
-    // Requêtes naturelles portant sur le contenu du document.
-    // Exemples : "documents contenant parcelle", "document concernant parcelle",
-    // "documents qui parlent de bornage", "documents avec le mot contrat".
     const contentPatterns = [
       /(?:documents?|fichiers?)\s+(?:qui\s+)?(?:contiennent?|contenant|concernent?|concernant)\s+(?:le\s+mot\s+)?["']?(.+?)["']?$/i,
       /(?:documents?|fichiers?)\s+(?:qui\s+)?(?:parlent?|traitent?)\s+(?:de|du|des)\s+["']?(.+?)["']?$/i,
@@ -40,22 +65,22 @@ export class SearchService {
     return f;
   }
 
-  async run(user: any, q: string, sort = 'relevance') {
-    const tenantId = user.tenantId;
-    const f = this.parse(q);
-    const where: any = { tenantId, deletedAt: null, status: 'ACTIVE' };
+  private folderAccess(user: any) {
+    if (user.role === 'TENANT_ADMIN') return undefined;
+    return {
+      OR: [
+        { visibility: 'COMPANY' },
+        { createdById: user.sub },
+        { userAccesses: { some: { userId: user.sub } } },
+        { groupAccesses: { some: { group: { members: { some: { userId: user.sub } } } } },
+      ],
+    };
+  }
 
-    if (user.role !== 'TENANT_ADMIN') {
-      where.folder = {
-        OR: [
-          { visibility: 'COMPANY' },
-          { createdById: user.sub },
-          { userAccesses: { some: { userId: user.sub } } },
-          { groupAccesses: { some: { group: { members: { some: { userId: user.sub } } } } } },
-        ],
-      };
-    }
-
+  private buildWhere(user: any, q: string, f: any) {
+    const where: any = { tenantId: user.tenantId, deletedAt: null, status: 'ACTIVE' };
+    const folder = this.folderAccess(user);
+    if (folder) where.folder = folder;
     if (f.extension) where.extension = f.extension;
     if (f.minBytes) where.sizeBytes = { gte: BigInt(f.minBytes) };
 
@@ -64,30 +89,61 @@ export class SearchService {
     if (f.nameStartsWith) ors.push({ name: { startsWith: f.nameStartsWith, mode: 'insensitive' } });
     if (f.nameEndsWith) ors.push({ name: { endsWith: f.nameEndsWith, mode: 'insensitive' } });
 
-    if (f.contentContains) {
-      // Une recherche "document contenant X" doit trouver X aussi bien dans le nom
-      // que dans le texte extrait du document.
-      ors.push(
-        { name: { contains: f.contentContains, mode: 'insensitive' } },
-        { extractedText: { contains: f.contentContains, mode: 'insensitive' } },
-      );
-    }
-
-    if (!ors.length && q.trim()) {
-      ors.push(
-        { name: { contains: q.trim(), mode: 'insensitive' } },
-        { extractedText: { contains: q.trim(), mode: 'insensitive' } },
-      );
+    const term = f.contentContains || (!ors.length ? q.trim() : '');
+    if (term) {
+      for (const variant of this.variants(term)) {
+        ors.push(
+          { name: { contains: variant, mode: 'insensitive' } },
+          { extractedText: { contains: variant, mode: 'insensitive' } },
+        );
+      }
     }
     if (ors.length) where.OR = ors;
+    return where;
+  }
 
-    const docs = await this.db.document.findMany({
-      where,
+  private async find(user: any, q: string, f: any, sort: string) {
+    return this.db.document.findMany({
+      where: this.buildWhere(user, q, f),
       take: 100,
       orderBy: sort === 'newest' ? { createdAt: 'desc' } : { name: 'asc' },
       include: { folder: { select: { name: true } }, createdBy: { select: { name: true } } },
     });
+  }
 
-    return { query: q, interpretedFilters: f, documents: docs };
+  private async indexMissingAccessibleDocuments(user: any) {
+    const where: any = {
+      tenantId: user.tenantId,
+      deletedAt: null,
+      status: 'ACTIVE',
+      extractedText: null,
+      extension: { in: ['pdf', 'txt', 'csv', 'json', 'xml', 'md', 'dxf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt', 'odt', 'ods', 'odp'] },
+    };
+    const folder = this.folderAccess(user);
+    if (folder) where.folder = folder;
+    const missing = await this.db.document.findMany({ where, select: { id: true }, take: 12, orderBy: { createdAt: 'desc' } });
+    if (!missing.length) return 0;
+    await Promise.allSettled(missing.map((document) => this.ai.indexDocument(document.id)));
+    return missing.length;
+  }
+
+  async run(user: any, q: string, sort = 'relevance') {
+    const f = this.parse(q);
+    let docs = await this.find(user, q, f, sort);
+
+    // Les anciens documents peuvent avoir été importés avant l'indexation automatique.
+    // Si une recherche textuelle ne donne rien, on indexe un petit lot de documents
+    // accessibles puis on relance immédiatement la recherche.
+    if (!docs.length && q.trim()) {
+      const indexed = await this.indexMissingAccessibleDocuments(user);
+      if (indexed) docs = await this.find(user, q, f, sort);
+    }
+
+    return {
+      query: q,
+      normalizedQuery: this.normalize(q),
+      interpretedFilters: f,
+      documents: docs,
+    };
   }
 }
