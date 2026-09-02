@@ -8,7 +8,9 @@ import './viewer-mobile.css';
 import './pricing-legal.css';
 import './mfa.css';
 import './mobile-shell.css';
+import './signature-controls.css';
 import AnalyticsTracker from '../components/AnalyticsTracker';
+import SignatureInteractionControls from '../components/SignatureInteractionControls';
 
 export const metadata = {
   title: 'Coffria',
@@ -18,7 +20,7 @@ export const metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr">
-      <body><AnalyticsTracker />{children}</body>
+      <body><AnalyticsTracker /><SignatureInteractionControls />{children}</body>
     </html>
   );
 }
