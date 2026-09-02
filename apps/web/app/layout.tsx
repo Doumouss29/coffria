@@ -9,6 +9,7 @@ import './pricing-legal.css';
 import './mfa.css';
 import './mobile-shell.css';
 import './signature-controls.css';
+import './desktop-readability.css';
 import AnalyticsTracker from '../components/AnalyticsTracker';
 import SignatureInteractionControls from '../components/SignatureInteractionControls';
 
