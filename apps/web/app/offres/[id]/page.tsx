@@ -12,6 +12,7 @@ function formatDate(value?: string | null) {
   if (!value) return null;
   return new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }).format(new Date(value));
 }
+function normalizeOffer(offer:any){const text=`${offer?.title||''} ${offer?.subtitle||''} ${offer?.description||''} ${offer?.ctaLabel||''}`.toUpperCase();if(!text.includes('ESSENTIEL'))return offer;return {...offer,title:'Pack CORPORATE — 1 To',subtitle:'Offre du moment',description:'1 To de stockage documentaire sécurisé à 60 000 FCFA HT par mois. En paiement annuel, bénéficiez de deux mois offerts, soit 600 000 FCFA HT par an.',ctaLabel:'Choisir le Pack CORPORATE',ctaUrl:'/souscription?plan=corporate'};}
 
 export default function OfferDetailPage() {
   const params = useParams<{ id: string }>();
@@ -19,7 +20,7 @@ export default function OfferDetailPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api('/marketing/public/offers').then(setOffers).finally(() => setLoading(false));
+    api('/marketing/public/offers').then((items:any[])=>setOffers((items||[]).map(normalizeOffer))).finally(() => setLoading(false));
   }, []);
 
   const offer = useMemo(() => offers.find((item) => item.id === params.id), [offers, params.id]);
@@ -32,8 +33,7 @@ export default function OfferDetailPage() {
 
   const start = formatDate(offer.startAt);
   const end = formatDate(offer.endAt);
-  const isEssentiel = String(offer.title || '').toUpperCase().includes('ESSENTIEL');
-  const ctaHref = isEssentiel ? '/souscription?plan=essentiel' : (offer.ctaUrl || '/souscription');
+  const ctaHref = offer.ctaUrl || '/souscription';
 
   return (
     <main className="publicPage offerDetailPage">
