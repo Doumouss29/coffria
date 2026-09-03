@@ -1,10 +1,16 @@
 .subscriptionPricingGrid{grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch}
 .subscriptionPriceCard{height:100%;min-width:0;box-sizing:border-box}
 .subscriptionPriceCard .subscriptionFeatureList{flex:1;align-content:start}
-.priceAmountInline{display:flex;align-items:baseline;gap:6px;flex-wrap:nowrap;min-width:0;white-space:nowrap}
-.priceAmountInline>span{font-size:clamp(24px,2.15vw,34px);line-height:1.08;white-space:nowrap;min-width:0}
-.priceAmountInline>small{white-space:nowrap;flex:0 0 auto}
-.priceAmountInline.priceAmountCustom>span{font-size:clamp(20px,1.45vw,24px);letter-spacing:-.35px}
+.subscriptionPriceCard .priceName{color:#14213d}
+.subscriptionPriceCard .priceAmount{color:#b86424!important}
+.priceAmountInline{display:flex!important;align-items:baseline!important;column-gap:14px!important;row-gap:6px;flex-wrap:nowrap!important;min-width:0;white-space:nowrap}
+.priceAmountInline>span{font-size:clamp(24px,2.15vw,34px);line-height:1.08;white-space:nowrap;min-width:0;color:#b86424!important}
+.priceAmountInline>small{white-space:nowrap;flex:0 0 auto;margin-left:4px!important;color:#667085!important;font-weight:700!important}
+.priceAmountInline.priceAmountCustom{column-gap:16px!important}
+.priceAmountInline.priceAmountCustom>span{font-size:clamp(20px,1.45vw,24px);letter-spacing:-.35px;color:#b86424!important}
+.subscriptionPriceCard .planMeta{color:#a9571f!important;background:#fff5ec;border:1px solid #f2d5bd;border-radius:10px;padding:10px 12px;font-weight:800;margin-top:2px}
+.subscriptionPriceCard.featured .planMeta{background:#fff1e5;border-color:#e9bf9b;color:#9d4e17!important}
+.subscriptionPriceCard .planBadge{background:#fff0e4;color:#a9571f}
 .subscriptionPriceCard .publicPrimary,.subscriptionPriceCard .publicSecondary{margin-top:auto}
 
 @media(max-width:900px){
@@ -19,9 +25,9 @@
   .subscriptionPriceCard{padding:20px}
   .subscriptionPriceCard .priceName{font-size:21px}
   .subscriptionPriceCard>p{font-size:15px;line-height:1.5}
-  .priceAmountInline{gap:5px}
+  .priceAmountInline{column-gap:10px!important;flex-wrap:wrap!important}
   .priceAmountInline>span{font-size:28px}
   .priceAmountInline.priceAmountCustom>span{font-size:19px;letter-spacing:-.45px}
-  .priceAmountInline>small{font-size:12px}
-  .subscriptionPriceCard .planMeta{font-size:14px}
+  .priceAmountInline>small{font-size:12px;margin-left:0!important}
+  .subscriptionPriceCard .planMeta{font-size:14px;padding:9px 11px}
 }
