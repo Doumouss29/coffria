@@ -9,21 +9,35 @@ import { api } from '../lib/api';
 
 const fallbackOffer = {
   id: 'fallback',
-  title: 'Découvrez Coffria avec une démonstration personnalisée',
+  title: 'Pack CORPORATE — 1 To',
   subtitle: 'Offre du moment',
-  description: 'Présentez-nous votre organisation et vos besoins documentaires : nous vous proposerons la formule adaptée.',
-  ctaLabel: 'Découvrir l’offre',
-  ctaUrl: '/contact',
+  description: '1 To de stockage documentaire sécurisé à 60 000 FCFA HT par mois, avec deux mois offerts en paiement annuel.',
+  ctaLabel: 'Choisir le Pack CORPORATE',
+  ctaUrl: '/souscription?plan=corporate',
   placement: 'BOTH',
 };
 
 const fallbackPlans = [
-  { id:'p', slug:'pro', name:'PRO', subtitle:'Pour les équipes qui collaborent au quotidien', priceLabel:'40 000 FCFA HT / mois', features:['500 Go de stockage','Signature électronique sécurisée','Gestion avancée des droits'], isHighlighted:true, badge:'Recommandée' },
-  { id:'c', slug:'corporate', name:'CORPORATE', subtitle:'Pour les organisations et volumes importants', priceLabel:'60 000 FCFA HT / mois', features:['1 To de stockage','Multi-signataires et workflows','Support dédié'], isHighlighted:false, badge:'Corporate' },
+  { id:'p', slug:'pro', name:'PRO', subtitle:'Pour les équipes qui collaborent au quotidien', priceLabel:'40 000 FCFA HT / mois', features:['500 Go de stockage','Signature électronique sécurisée','Gestion avancée des droits'], isHighlighted:false },
+  { id:'c', slug:'corporate', name:'CORPORATE', subtitle:'Pour les organisations et volumes importants', priceLabel:'60 000 FCFA HT / mois', features:['1 To de stockage','Multi-signataires et workflows','Support dédié'], isHighlighted:true, badge:'Bestseller' },
   { id:'s', slug:'sur-mesure', name:'SUR MESURE', subtitle:'Pour les besoins supérieurs à 1 To', priceLabel:'À partir de 80 000 FCFA HT / mois', features:['Plus de 1 To','Paliers de +500 Go à 20 000 FCFA','Dimensionnement personnalisé'], isHighlighted:false, badge:'Flexible' },
 ];
 
+function normalizeOffer(offer:any) {
+  const text = `${offer?.title||''} ${offer?.subtitle||''} ${offer?.description||''} ${offer?.ctaLabel||''}`.toUpperCase();
+  if (!text.includes('ESSENTIEL')) return offer;
+  return {
+    ...offer,
+    title: 'Pack CORPORATE — 1 To',
+    subtitle: 'Offre du moment',
+    description: '1 To de stockage documentaire sécurisé à 60 000 FCFA HT par mois. En paiement annuel, bénéficiez de deux mois offerts, soit 600 000 FCFA HT par an.',
+    ctaLabel: 'Choisir le Pack CORPORATE',
+    ctaUrl: '/souscription?plan=corporate',
+  };
+}
+
 function offerDetailHref(offer:any) {
+  if (offer?.ctaUrl?.startsWith('/souscription')) return offer.ctaUrl;
   return offer?.id && offer.id !== 'fallback' ? `/offres/${offer.id}` : '/offres';
 }
 function planSlug(p:any){return String(p?.slug||p?.name||'').toLowerCase()}
@@ -31,8 +45,8 @@ function normalizePublicPlans(items:any[]){
   const pro=items.find((p:any)=>planSlug(p)==='pro');
   const corporate=items.find((p:any)=>planSlug(p)==='corporate');
   return [
-    pro?{...pro,name:'PRO',priceLabel:'40 000 FCFA HT / mois',storageGb:500,features:['500 Go de stockage','Signature électronique sécurisée','Gestion avancée des droits'],isHighlighted:true,badge:pro.badge||'Recommandée'}:fallbackPlans[0],
-    corporate?{...corporate,name:'CORPORATE',priceLabel:'60 000 FCFA HT / mois',storageGb:1000,features:['1 To de stockage','Multi-signataires et workflows','Support dédié'],isHighlighted:false,badge:corporate.badge||'Corporate'}:fallbackPlans[1],
+    pro?{...pro,name:'PRO',priceLabel:'40 000 FCFA HT / mois',storageGb:500,features:['500 Go de stockage','Signature électronique sécurisée','Gestion avancée des droits'],isHighlighted:false,badge:null}:fallbackPlans[0],
+    corporate?{...corporate,name:'CORPORATE',priceLabel:'60 000 FCFA HT / mois',storageGb:1000,features:['1 To de stockage','Multi-signataires et workflows','Support dédié'],isHighlighted:true,badge:'Bestseller'}:fallbackPlans[1],
     fallbackPlans[2],
   ];
 }
@@ -43,7 +57,7 @@ export default function HomePage() {
 
   useEffect(() => {
     Promise.all([api('/marketing/public/offers'), api('/marketing/public/plans')])
-      .then(([o,p]) => { setOffers(o); setPlans(normalizePublicPlans(p)); })
+      .then(([o,p]) => { setOffers((o||[]).map(normalizeOffer)); setPlans(normalizePublicPlans(p||[])); })
       .catch(() => { setPlans(fallbackPlans); });
   }, []);
 
