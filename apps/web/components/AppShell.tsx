@@ -2,13 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { BarChart3, Bot, Building2, FileSignature, FileText, Folder, LayoutDashboard, LogOut, Megaphone, Menu, Settings, ShieldCheck, Trash2, Users, UsersRound, X } from 'lucide-react';
+import { BarChart3, Building2, FileSignature, FileText, Folder, LayoutDashboard, LogOut, Megaphone, Menu, Settings, ShieldCheck, Trash2, Users, UsersRound, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../lib/api';
 
 const tenantLinks = [
   { href: '/explorer', label: 'Mes dossiers', icon: Folder },
-  { href: '/assistant', label: 'Assistant IA', icon: Bot },
   { href: '/signatures', label: 'Espace signature', icon: FileSignature },
   { href: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
   { href: '/users', label: 'Utilisateurs', icon: Users },
