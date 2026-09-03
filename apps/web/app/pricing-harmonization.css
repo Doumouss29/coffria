@@ -1,0 +1,27 @@
+.subscriptionPricingGrid{grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch}
+.subscriptionPriceCard{height:100%;min-width:0;box-sizing:border-box}
+.subscriptionPriceCard .subscriptionFeatureList{flex:1;align-content:start}
+.priceAmountInline{display:flex;align-items:baseline;gap:6px;flex-wrap:nowrap;min-width:0;white-space:nowrap}
+.priceAmountInline>span{font-size:clamp(24px,2.15vw,34px);line-height:1.08;white-space:nowrap;min-width:0}
+.priceAmountInline>small{white-space:nowrap;flex:0 0 auto}
+.priceAmountInline.priceAmountCustom>span{font-size:clamp(20px,1.45vw,24px);letter-spacing:-.35px}
+.subscriptionPriceCard .publicPrimary,.subscriptionPriceCard .publicSecondary{margin-top:auto}
+
+@media(max-width:900px){
+  .subscriptionPricingGrid{grid-template-columns:1fr;align-items:stretch}
+  .subscriptionPriceCard{height:auto;min-height:0}
+  .priceAmountInline>span{font-size:clamp(27px,7vw,34px)}
+  .priceAmountInline.priceAmountCustom>span{font-size:clamp(20px,5.4vw,25px)}
+}
+
+@media(max-width:480px){
+  .subscriptionPricingGrid{gap:14px}
+  .subscriptionPriceCard{padding:20px}
+  .subscriptionPriceCard .priceName{font-size:21px}
+  .subscriptionPriceCard>p{font-size:15px;line-height:1.5}
+  .priceAmountInline{gap:5px}
+  .priceAmountInline>span{font-size:28px}
+  .priceAmountInline.priceAmountCustom>span{font-size:19px;letter-spacing:-.45px}
+  .priceAmountInline>small{font-size:12px}
+  .subscriptionPriceCard .planMeta{font-size:14px}
+}
