@@ -18,13 +18,23 @@ const fallbackOffer = {
 };
 
 const fallbackPlans = [
-  { id:'e', name:'Essentiel', subtitle:'Pour démarrer simplement', priceLabel:'Sur devis', features:['Espace documentaire sécurisé','Gestion des dossiers','Comptes utilisateurs'], isHighlighted:false },
-  { id:'p', name:'Professionnel', subtitle:'Pour les équipes qui collaborent au quotidien', priceLabel:'Sur devis', features:['Gestion avancée des droits','Groupes utilisateurs','Accompagnement au déploiement'], isHighlighted:true, badge:'Recommandée' },
-  { id:'x', name:'Entreprise', subtitle:'Pour les besoins avancés et volumes importants', priceLabel:'Sur devis', features:['Capacité de stockage adaptée','Support prioritaire','Options sur mesure'], isHighlighted:false },
+  { id:'p', slug:'pro', name:'PRO', subtitle:'Pour les équipes qui collaborent au quotidien', priceLabel:'40 000 FCFA HT / mois', features:['500 Go de stockage','Signature électronique sécurisée','Gestion avancée des droits'], isHighlighted:true, badge:'Recommandée' },
+  { id:'c', slug:'corporate', name:'CORPORATE', subtitle:'Pour les organisations et volumes importants', priceLabel:'60 000 FCFA HT / mois', features:['1 To de stockage','Multi-signataires et workflows','Support dédié'], isHighlighted:false, badge:'Corporate' },
+  { id:'s', slug:'sur-mesure', name:'SUR MESURE', subtitle:'Pour les besoins supérieurs à 1 To', priceLabel:'À partir de 80 000 FCFA HT / mois', features:['Plus de 1 To','Paliers de +500 Go à 20 000 FCFA','Dimensionnement personnalisé'], isHighlighted:false, badge:'Flexible' },
 ];
 
 function offerDetailHref(offer:any) {
   return offer?.id && offer.id !== 'fallback' ? `/offres/${offer.id}` : '/offres';
+}
+function planSlug(p:any){return String(p?.slug||p?.name||'').toLowerCase()}
+function normalizePublicPlans(items:any[]){
+  const pro=items.find((p:any)=>planSlug(p)==='pro');
+  const corporate=items.find((p:any)=>planSlug(p)==='corporate');
+  return [
+    pro?{...pro,name:'PRO',priceLabel:'40 000 FCFA HT / mois',storageGb:500,features:['500 Go de stockage','Signature électronique sécurisée','Gestion avancée des droits'],isHighlighted:true,badge:pro.badge||'Recommandée'}:fallbackPlans[0],
+    corporate?{...corporate,name:'CORPORATE',priceLabel:'60 000 FCFA HT / mois',storageGb:1000,features:['1 To de stockage','Multi-signataires et workflows','Support dédié'],isHighlighted:false,badge:corporate.badge||'Corporate'}:fallbackPlans[1],
+    fallbackPlans[2],
+  ];
 }
 
 export default function HomePage() {
@@ -33,13 +43,13 @@ export default function HomePage() {
 
   useEffect(() => {
     Promise.all([api('/marketing/public/offers'), api('/marketing/public/plans')])
-      .then(([o,p]) => { setOffers(o); setPlans(p); })
-      .catch(() => {});
+      .then(([o,p]) => { setOffers(o); setPlans(normalizePublicPlans(p)); })
+      .catch(() => { setPlans(fallbackPlans); });
   }, []);
 
   const topOffer = useMemo(() => offers.find((x)=>['TOP','BOTH'].includes(x.placement)) || fallbackOffer, [offers]);
   const homeOffer = useMemo(() => offers.find((x)=>['HOME','BOTH'].includes(x.placement)) || fallbackOffer, [offers]);
-  const displayPlans = plans.length ? plans.slice(0,3) : fallbackPlans;
+  const displayPlans = plans.length ? plans : fallbackPlans;
 
   return (
     <main className="publicPage">
@@ -122,7 +132,7 @@ export default function HomePage() {
       <section className="section">
         <div className="publicContainer">
           <div className="sectionHead"><div><span className="eyebrow">Formules</span><h2>Choisissez votre niveau d’accompagnement</h2></div><Link href="/souscription" className="textLink">Voir tous les tarifs →</Link></div>
-          <div className="pricingGrid compactPricing">{displayPlans.map((plan:any)=><article key={plan.id || plan.name} className={`priceCard ${plan.isHighlighted?'featured':''}`}>{plan.badge&&<span className="planBadge">{plan.badge}</span>}<div className="priceName">{plan.name}</div><p>{plan.subtitle}</p><div className="priceAmount">{plan.priceLabel || 'Sur devis'}</div><ul className="priceList">{(Array.isArray(plan.features)?plan.features:[]).slice(0,3).map((f:string)=><li key={f}>{f}</li>)}</ul><Link href="/contact" className={plan.isHighlighted?'publicPrimary':'publicSecondary'}>Demander une offre</Link></article>)}</div>
+          <div className="pricingGrid compactPricing">{displayPlans.map((plan:any)=><article key={plan.id || plan.name} className={`priceCard ${plan.isHighlighted?'featured':''}`}>{plan.badge&&<span className="planBadge">{plan.badge}</span>}<div className="priceName">{plan.name}</div><p>{plan.subtitle}</p><div className="priceAmount">{plan.priceLabel || 'Sur devis'}</div><ul className="priceList">{(Array.isArray(plan.features)?plan.features:[]).slice(0,3).map((f:string)=><li key={f}>{f}</li>)}</ul><Link href={`/souscription?plan=${encodeURIComponent(plan.slug||plan.name)}`} className={plan.isHighlighted?'publicPrimary':'publicSecondary'}>Choisir cette offre</Link></article>)}</div>
         </div>
       </section>
 
