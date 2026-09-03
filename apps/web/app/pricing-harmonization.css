@@ -1,40 +1,46 @@
-.subscriptionPricingGrid{grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch}
+.subscriptionPricingGrid{grid-template-columns:.95fr .95fr 1.12fr;align-items:stretch}
 .subscriptionPriceCard{height:100%;min-width:0;box-sizing:border-box}
 .subscriptionPriceCard .subscriptionFeatureList{flex:1;align-content:start}
 .subscriptionPriceCard .priceName{color:#14213d}
 
-/* Prix : même taille sur les 3 offres et période toujours sur la même ligne. */
+/* Prix : même taille sur les 3 offres, avec assez de largeur pour / mois. */
 .subscriptionPriceCard .priceAmount{color:#b86424!important}
-.priceAmountInline{display:flex!important;align-items:baseline!important;justify-content:flex-start!important;gap:14px!important;flex-wrap:nowrap!important;min-width:0;white-space:nowrap}
-.priceAmountInline>span,.priceAmountInline.priceAmountCustom>span{font-size:26px!important;line-height:1.08!important;letter-spacing:-.25px!important;white-space:nowrap!important;min-width:0;color:#b86424!important;font-weight:900!important}
-.priceAmountInline>.pricePeriod{display:inline-block!important;white-space:nowrap!important;flex:0 0 auto!important;margin:0!important;padding:0!important;border:0!important;color:#667085!important;font-size:14px!important;font-weight:800!important;line-height:1!important}
+.priceAmountInline{display:flex!important;align-items:baseline!important;justify-content:flex-start!important;gap:10px!important;flex-wrap:nowrap!important;min-width:0;white-space:nowrap!important;overflow:visible!important}
+.priceAmountInline>span,.priceAmountInline.priceAmountCustom>span{font-size:23px!important;line-height:1.08!important;letter-spacing:-.2px!important;white-space:nowrap!important;min-width:0;color:#b86424!important;font-weight:900!important;flex:0 1 auto!important}
+.priceAmountInline>.pricePeriod{display:inline-block!important;white-space:nowrap!important;flex:0 0 auto!important;margin:0!important;padding:0!important;border:0!important;color:#667085!important;font-size:13px!important;font-weight:800!important;line-height:1!important}
 
-/* Stockage : plus visible et distinct du prix. */
-.subscriptionPriceCard .planMeta{color:#8d4b19!important;background:#fff4e8!important;border:1px solid #efc79f!important;border-radius:12px;padding:13px 15px!important;font-size:18px!important;line-height:1.25!important;font-weight:850!important;margin-top:6px!important}
+/* Stockage : plus lisible et distinct du prix. */
+.subscriptionPriceCard .planMeta{color:#8d4b19!important;background:#fff4e8!important;border:1px solid #efc79f!important;border-radius:12px;padding:14px 16px!important;font-size:19px!important;line-height:1.25!important;font-weight:850!important;margin-top:8px!important}
 .subscriptionPriceCard.featured .planMeta{background:#fff0df!important;border-color:#e7b681!important;color:#814111!important}
 .subscriptionPriceCard .planBadge{background:#fff0e4;color:#a9571f}
 .subscriptionPriceCard .publicPrimary,.subscriptionPriceCard .publicSecondary{margin-top:auto}
 
-/* Accueil : prix strictement isométriques et sur une ligne. */
-.compactPricing .priceAmount{white-space:nowrap!important;color:#b86424!important;font-size:26px!important;line-height:1.12!important;letter-spacing:-.2px!important}
-.compactPricing .priceCard:nth-child(3) .priceAmount{font-size:26px!important;letter-spacing:-.2px!important}
-.compactPricing .priceList li:first-child{color:#8d4b19!important;font-size:18px!important;line-height:1.3!important;font-weight:850!important;background:#fff4e8!important;border:1px solid #efc79f!important;border-radius:10px!important;padding:10px 12px!important}
+/* Accueil : même taille de montant pour les trois formules et aucune coupure en desktop. */
+.compactPricing .priceAmount,.compactPricing .priceCard:nth-child(3) .priceAmount{white-space:nowrap!important;color:#b86424!important;font-size:23px!important;line-height:1.12!important;letter-spacing:-.15px!important}
+.compactPricing .priceList li:first-child{color:#8d4b19!important;font-size:19px!important;line-height:1.3!important;font-weight:850!important;background:#fff4e8!important;border:1px solid #efc79f!important;border-radius:10px!important;padding:11px 13px!important}
 .compactPricing .priceList li:first-child:before{color:#b86424!important}
 
-/* Offre du moment : empêcher "1 To" de se couper sur desktop. */
+/* Offre du moment / page Offres : garder les capacités sur une seule ligne en desktop. */
 .promoStripInner strong{white-space:nowrap!important}
 .promoOfferBanner h2{white-space:nowrap!important}
+.offerCardPromo h3{white-space:nowrap!important;max-width:none!important;font-size:23px!important;letter-spacing:-.35px!important}
 
 @media(max-width:1100px){
-  .compactPricing .priceAmount,.compactPricing .priceCard:nth-child(3) .priceAmount{font-size:23px!important}
+  .subscriptionPricingGrid{grid-template-columns:.93fr .93fr 1.14fr}
+  .priceAmountInline>span,.priceAmountInline.priceAmountCustom>span{font-size:21px!important}
+  .priceAmountInline>.pricePeriod{font-size:12px!important}
+  .compactPricing .priceAmount,.compactPricing .priceCard:nth-child(3) .priceAmount{font-size:21px!important}
+  .offerCardPromo h3{font-size:21px!important}
 }
 
 @media(max-width:900px){
   .subscriptionPricingGrid{grid-template-columns:1fr;align-items:stretch}
   .subscriptionPriceCard{height:auto;min-height:0}
-  .priceAmountInline>span,.priceAmountInline.priceAmountCustom>span{font-size:25px!important}
-  .compactPricing .priceAmount,.compactPricing .priceCard:nth-child(3) .priceAmount{font-size:25px!important}
+  .priceAmountInline>span,.priceAmountInline.priceAmountCustom>span{font-size:24px!important}
+  .priceAmountInline>.pricePeriod{font-size:13px!important}
+  .compactPricing .priceAmount,.compactPricing .priceCard:nth-child(3) .priceAmount{font-size:24px!important}
   .promoOfferBanner h2{white-space:normal!important}
+  .offerCardPromo h3{white-space:normal!important;font-size:24px!important}
 }
 
 @media(max-width:480px){
@@ -42,11 +48,11 @@
   .subscriptionPriceCard{padding:20px}
   .subscriptionPriceCard .priceName{font-size:21px}
   .subscriptionPriceCard>p{font-size:15px;line-height:1.5}
-  .priceAmountInline{gap:8px!important;flex-wrap:nowrap!important}
-  .priceAmountInline>span,.priceAmountInline.priceAmountCustom>span{font-size:19px!important;letter-spacing:-.35px!important}
-  .priceAmountInline>.pricePeriod{font-size:11px!important}
-  .subscriptionPriceCard .planMeta{font-size:16px!important;padding:11px 12px!important}
-  .compactPricing .priceAmount,.compactPricing .priceCard:nth-child(3) .priceAmount{white-space:nowrap!important;font-size:19px!important;letter-spacing:-.3px!important}
-  .compactPricing .priceList li:first-child{font-size:16px!important}
+  .priceAmountInline{gap:7px!important;flex-wrap:nowrap!important}
+  .priceAmountInline>span,.priceAmountInline.priceAmountCustom>span{font-size:18px!important;letter-spacing:-.3px!important}
+  .priceAmountInline>.pricePeriod{font-size:10px!important}
+  .subscriptionPriceCard .planMeta{font-size:17px!important;padding:12px 13px!important}
+  .compactPricing .priceAmount,.compactPricing .priceCard:nth-child(3) .priceAmount{white-space:nowrap!important;font-size:18px!important;letter-spacing:-.25px!important}
+  .compactPricing .priceList li:first-child{font-size:17px!important}
   .promoStripInner strong{white-space:normal!important}
 }
