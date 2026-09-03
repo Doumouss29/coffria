@@ -6,6 +6,7 @@ import './mobile-explorer.css';
 import './viewer-fixes.css';
 import './viewer-mobile.css';
 import './pricing-legal.css';
+import './pricing-harmonization.css';
 import './mfa.css';
 import './mobile-shell.css';
 import './signature-controls.css';
