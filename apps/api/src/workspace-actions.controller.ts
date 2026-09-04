@@ -49,7 +49,7 @@ export class WorkspaceActionsController {
         { visibility: 'COMPANY' },
         { createdById: req.user.sub },
         { userAccesses: { some: { userId: req.user.sub } } },
-        { groupAccesses: { some: { group: { members: { some: { userId: req.user.sub } } } } },
+        { groupAccesses: { some: { group: { members: { some: { userId: req.user.sub } } } } } },
       ],
     };
   }
@@ -353,8 +353,8 @@ export class WorkspaceActionsController {
           await tx.folder.updateMany({ where: { id: { in: tree }, tenantId }, data: { space: dto.targetSpace, visibility: access.visibility } });
           if (access.visibility === 'RESTRICTED') {
             for (const id of tree) {
-              if (access.userIds.length) await tx.folderUserAccess.createMany({ data: access.userIds.map((userId) => ({ folderId: id, userId })), skipDuplicates: true });
-              if (access.groupIds.length) await tx.folderGroupAccess.createMany({ data: access.groupIds.map((groupId) => ({ folderId: id, groupId })), skipDuplicates: true });
+              if (access.userIds.length) await tx.folderUserAccess.createMany({ data: access.userIds.map((userId: string) => ({ folderId: id, userId })), skipDuplicates: true });
+              if (access.groupIds.length) await tx.folderGroupAccess.createMany({ data: access.groupIds.map((groupId: string) => ({ folderId: id, groupId })), skipDuplicates: true });
             }
           }
           await tx.folder.update({ where: { id: rootId }, data: { parentId: targetFolderId } });
