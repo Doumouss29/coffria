@@ -57,3 +57,17 @@
 
 /* White-label tenant branding */
 .brandLogoWrap{display:flex;align-items:center;min-height:48px;max-width:220px}.brandLogo{display:block;max-width:210px;max-height:54px;width:auto;height:auto;object-fit:contain}.loginBrandLogoWrap{display:flex;justify-content:center;align-items:center;margin-bottom:10px;min-height:70px}.loginBrandLogo{display:block;max-width:280px;max-height:92px;width:auto;height:auto;object-fit:contain}.loginBrandText{text-align:center;font-size:34px}.brandingLoginSubtitle{margin:-18px 0 26px;color:#7a8494;font-size:14px;line-height:1.45;text-align:center}.side .brandCustom{font-size:26px;line-height:1.12;overflow-wrap:anywhere}.loginBack{margin-top:16px;text-align:center;font-size:13px}.loginBack a{color:var(--navy);text-decoration:none}
+
+/* Admin entreprises : choix d'identité et formulaires adaptatifs */
+.brandingModeChoice{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:8px 0 18px}.brandingModeCard{display:flex;align-items:flex-start;gap:11px;padding:14px;border:1px solid var(--line);border-radius:12px;background:#fff;cursor:pointer}.brandingModeCard.selected{border-color:var(--orange);box-shadow:0 0 0 2px color-mix(in srgb,var(--orange) 18%,transparent)}.brandingModeCard input{margin-top:3px}.brandingModeCard span{display:grid;gap:4px}.brandingModeCard small{color:#7a8494;line-height:1.35}.responsiveFormModal{max-height:calc(100dvh - 40px);overflow-y:auto;overflow-x:auto;overscroll-behavior:contain}.horizontalScroll{overflow-x:auto;-webkit-overflow-scrolling:touch}.horizontalScroll .table{min-width:620px}
+@media(max-width:850px){
+  .responsiveFormModal{overflow-x:auto!important;overflow-y:auto!important;-webkit-overflow-scrolling:touch}
+  .brandingModeChoice{display:flex;min-width:620px;overflow-x:visible}.brandingModeCard{min-width:290px;flex:1}
+  .responsiveFormModal .formGridScrollable{grid-template-columns:repeat(2,minmax(280px,1fr))!important;min-width:620px}
+  .responsiveFormModal .formGridScrollable .field{min-width:0}
+  .responsiveFormModal .modalActions{min-width:620px}
+}
+@media(max-width:520px){
+  .responsiveFormModal .formGridScrollable,.responsiveFormModal .modalActions,.brandingModeChoice{min-width:580px}
+  .brandingModeCard{min-width:270px}
+}
