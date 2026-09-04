@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, Patch, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, Patch, Query, Req, UseGuards } from '@nestjs/common';
 import { IsBoolean, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 import { JwtGuard } from './jwt.guard';
 import { PrismaService } from './prisma.service';
@@ -13,7 +13,7 @@ const DEFAULT_BRANDING = {
   accentColor: '#C97A3D',
   backgroundColor: '#F5F1EA',
   loginTitle: 'Votre patrimoine documentaire, sécurisé et maîtrisé',
-  loginSubtitle: null,
+  loginSubtitle: 'Votre espace documentaire sécurisé et intelligent',
   poweredByCoffria: true,
 };
 
@@ -32,7 +32,6 @@ class UpdateTenantBrandingDto {
 }
 
 @Controller('tenant-branding')
-@UseGuards(JwtGuard)
 export class TenantBrandingController {
   constructor(private db: PrismaService) {}
 
@@ -55,16 +54,38 @@ export class TenantBrandingController {
     return domain;
   }
 
-  private effective(row: any | null, tenantId: string) {
+  private effective(row: any | null, tenantId?: string | null) {
+    const enabled = Boolean(row?.isEnabled);
+    const custom = enabled ? row : null;
     return {
-      tenantId,
+      tenantId: tenantId || null,
       ...DEFAULT_BRANDING,
-      ...(row || {}),
-      effective: row?.isEnabled ? 'CUSTOM' : 'COFFRIA',
+      ...(custom || {}),
+      isEnabled: enabled,
+      effective: enabled ? 'CUSTOM' : 'COFFRIA',
     };
   }
 
+  @Get('public/resolve')
+  async resolvePublic(@Query('host') host?: string) {
+    const cleanHost = String(host || '').trim().toLowerCase().split(':')[0].replace(/\.$/, '');
+    if (!cleanHost) return this.effective(null, null);
+    const row = await this.db.tenantBranding.findFirst({
+      where: { customDomain: cleanHost, isEnabled: true },
+    });
+    return this.effective(row, row?.tenantId || null);
+  }
+
+  @Get('current')
+  @UseGuards(JwtGuard)
+  async current(@Req() req: any) {
+    if (req.user?.role === 'SUPER_ADMIN' || !req.user?.tenantId) return this.effective(null, null);
+    const row = await this.db.tenantBranding.findUnique({ where: { tenantId: req.user.tenantId } });
+    return this.effective(row, req.user.tenantId);
+  }
+
   @Get(':tenantId')
+  @UseGuards(JwtGuard)
   async get(@Req() req: any, @Param('tenantId') tenantId: string) {
     this.check(req);
     await this.db.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { id: true } });
@@ -73,6 +94,7 @@ export class TenantBrandingController {
   }
 
   @Patch(':tenantId')
+  @UseGuards(JwtGuard)
   async update(@Req() req: any, @Param('tenantId') tenantId: string, @Body() dto: UpdateTenantBrandingDto) {
     this.check(req);
     await this.db.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { id: true } });
