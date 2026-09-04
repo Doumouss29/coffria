@@ -86,6 +86,25 @@ model Tenant {
   groups            Group[]
   signatureRequests SignatureRequest[]
   archiveChunks     ArchiveChunk[]
+  branding          TenantBranding?
+}
+
+model TenantBranding {
+  tenantId          String   @id
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  isEnabled         Boolean  @default(false)
+  appName           String?
+  customDomain      String?  @unique
+  logoUrl           String?
+  faviconUrl        String?
+  primaryColor      String?
+  accentColor       String?
+  backgroundColor   String?
+  loginTitle        String?
+  loginSubtitle     String?
+  poweredByCoffria  Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
 
 model User {
