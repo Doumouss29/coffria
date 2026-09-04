@@ -45,10 +45,8 @@ export class ExplorerController {
   private normalizeSpace(value?: string): Space {
     return value === 'PERSONAL' ? 'PERSONAL' : 'COMPANY';
   }
-  private accessWhere(req: any, space: Space): any {
-    if (space === 'COMPANY' && req.user.role === 'TENANT_ADMIN') return { space: 'COMPANY' };
+  private directAccessWhere(req: any): any {
     return {
-      space,
       OR: [
         { visibility: 'COMPANY' },
         { createdById: req.user.sub },
@@ -57,15 +55,49 @@ export class ExplorerController {
       ],
     };
   }
+  private sharedPersonalRootWhere(req: any): any {
+    return {
+      space: 'PERSONAL',
+      OR: [
+        { visibility: 'COMPANY' },
+        { AND: [{ createdById: req.user.sub }, { visibility: 'RESTRICTED' }] },
+        { userAccesses: { some: { userId: req.user.sub } } },
+        { groupAccesses: { some: { group: { members: { some: { userId: req.user.sub } } } } } },
+      ],
+    };
+  }
+  private accessWhere(req: any, space: Space): any {
+    if (space === 'PERSONAL') return { space: 'PERSONAL', createdById: req.user.sub };
+    if (req.user.role === 'TENANT_ADMIN') return { space: 'COMPANY' };
+    return { space: 'COMPANY', ...this.directAccessWhere(req) };
+  }
   private async folderOrThrow(req: any, id: string) {
     const tenantId = this.tenant(req);
-    const probe = await this.db.folder.findFirst({ where: { id, tenantId, deletedAt: null }, select: { id: true, space: true } });
-    if (!probe) throw new NotFoundException('Dossier introuvable ou accès non autorisé');
-    const folder = await this.db.folder.findFirst({
-      where: { id, tenantId, deletedAt: null, ...this.accessWhere(req, probe.space as Space) },
+    const probe = await this.db.folder.findFirst({
+      where: { id, tenantId, deletedAt: null },
+      select: { id: true, parentId: true, space: true },
     });
-    if (!folder) throw new NotFoundException('Dossier introuvable ou accès non autorisé');
-    return folder;
+    if (!probe) throw new NotFoundException('Dossier introuvable ou accès non autorisé');
+
+    if (probe.space === 'COMPANY' && req.user.role === 'TENANT_ADMIN') {
+      return this.db.folder.findUniqueOrThrow({ where: { id } });
+    }
+
+    let cursor: { id: string; parentId: string | null; space: Space } | null = probe as any;
+    while (cursor) {
+      const allowed = await this.db.folder.findFirst({
+        where: { id: cursor.id, tenantId, deletedAt: null, ...this.directAccessWhere(req) },
+        select: { id: true },
+      });
+      if (allowed) return this.db.folder.findUniqueOrThrow({ where: { id } });
+      cursor = cursor.parentId
+        ? await this.db.folder.findFirst({
+            where: { id: cursor.parentId, tenantId, deletedAt: null, space: probe.space },
+            select: { id: true, parentId: true, space: true },
+          }) as any
+        : null;
+    }
+    throw new NotFoundException('Dossier introuvable ou accès non autorisé');
   }
 
   @Get()
@@ -79,18 +111,38 @@ export class ExplorerController {
     let breadcrumbs: Array<{ id: string; name: string }> = [];
     if (folderId) {
       currentFolder = await this.folderOrThrow(req, folderId);
-      if (currentFolder.space !== space) throw new BadRequestException('Ce dossier appartient à un autre espace');
+      const sharedPersonalInCompany = space === 'COMPANY' && currentFolder.space === 'PERSONAL';
+      if (currentFolder.space !== space && !sharedPersonalInCompany) throw new BadRequestException('Ce dossier appartient à un autre espace');
       const trail: Array<{ id: string; name: string }> = [];
       let cursor: any = currentFolder;
       while (cursor) {
         trail.unshift({ id: cursor.id, name: cursor.name });
-        cursor = cursor.parentId ? await this.db.folder.findFirst({ where: { id: cursor.parentId, tenantId, deletedAt: null, space } }) : null;
+        cursor = cursor.parentId
+          ? await this.db.folder.findFirst({ where: { id: cursor.parentId, tenantId, deletedAt: null, space: currentFolder.space } })
+          : null;
       }
       breadcrumbs = trail;
     }
+
+    const folderWhere = folderId
+      ? { tenantId, parentId: folderId, deletedAt: null, space: currentFolder.space }
+      : space === 'PERSONAL'
+        ? { tenantId, parentId: null, deletedAt: null, space: 'PERSONAL', createdById: req.user.sub }
+        : {
+            tenantId,
+            parentId: null,
+            deletedAt: null,
+            OR: [
+              req.user.role === 'TENANT_ADMIN'
+                ? { space: 'COMPANY' }
+                : { space: 'COMPANY', ...this.directAccessWhere(req) },
+              this.sharedPersonalRootWhere(req),
+            ],
+          };
+
     const [folders, documents, tenant] = await Promise.all([
       this.db.folder.findMany({
-        where: { tenantId, parentId: folderId || null, deletedAt: null, ...this.accessWhere(req, space) },
+        where: folderWhere as any,
         orderBy: { name: dir as any },
         include: { createdBy: { select: { name: true } } },
       }),
