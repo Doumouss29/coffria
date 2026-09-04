@@ -17,7 +17,7 @@ function quotaGb(value: any, unit: StorageUnit) {
 
 function quotaParts(gb: any): { quotaValue: number; quotaUnit: StorageUnit } {
   const value = Math.max(1, Number(gb || 1));
-  if (value >= 1024 && value % 1024 === 0) return { quotaValue: value / 1024, quotaUnit: 'TB' };
+  if (value >= 1024) return { quotaValue: Number((value / 1024).toFixed(2)), quotaUnit: 'TB' };
   return { quotaValue: value, quotaUnit: 'GB' };
 }
 
