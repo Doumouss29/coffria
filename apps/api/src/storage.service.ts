@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import {
   AbortMultipartUploadCommand,
   CompleteMultipartUploadCommand,
+  CopyObjectCommand,
   CreateMultipartUploadCommand,
   DeleteObjectCommand,
   DeleteObjectsCommand,
@@ -72,6 +73,16 @@ export class StorageService {
       Key: key,
       Body: body,
       ContentType: mime,
+      ServerSideEncryption: 'AES256',
+    }));
+  }
+
+  copy(sourceKey: string, destinationKey: string) {
+    const encodedSource = `${this.bucket}/${sourceKey}`.split('/').map(encodeURIComponent).join('/');
+    return this.s3.send(new CopyObjectCommand({
+      Bucket: this.bucket,
+      Key: destinationKey,
+      CopySource: encodedSource,
       ServerSideEncryption: 'AES256',
     }));
   }
