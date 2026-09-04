@@ -1,7 +1,8 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, Patch, Query, Req, UseGuards } from '@nestjs/common';
-import { IsBoolean, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Matches, Max, MaxLength, Min } from 'class-validator';
 import { JwtGuard } from './jwt.guard';
 import { PrismaService } from './prisma.service';
+import { StorageService } from './storage.service';
 
 const DEFAULT_BRANDING = {
   isEnabled: false,
@@ -17,6 +18,8 @@ const DEFAULT_BRANDING = {
   poweredByCoffria: true,
 };
 
+const BRANDING_MIMES = ['image/png', 'image/jpeg', 'image/webp', 'image/x-icon', 'image/vnd.microsoft.icon'] as const;
+
 class UpdateTenantBrandingDto {
   @IsOptional() @IsBoolean() isEnabled?: boolean;
   @IsOptional() @IsString() @MaxLength(80) appName?: string;
@@ -31,9 +34,15 @@ class UpdateTenantBrandingDto {
   @IsOptional() @IsBoolean() poweredByCoffria?: boolean;
 }
 
+class BrandingAssetUploadDto {
+  @IsIn(['logo', 'favicon']) kind!: 'logo' | 'favicon';
+  @IsIn(BRANDING_MIMES as unknown as string[]) mime!: string;
+  @IsInt() @Min(1) @Max(5 * 1024 * 1024) size!: number;
+}
+
 @Controller('tenant-branding')
 export class TenantBrandingController {
-  constructor(private db: PrismaService) {}
+  constructor(private db: PrismaService, private storage: StorageService) {}
 
   private check(req: any) {
     if (req.user?.role !== 'SUPER_ADMIN') throw new ForbiddenException();
@@ -66,6 +75,10 @@ export class TenantBrandingController {
     };
   }
 
+  private assetKey(tenantId: string, kind: 'logo' | 'favicon') {
+    return `branding/${tenantId}/${kind}`;
+  }
+
   @Get('public/resolve')
   async resolvePublic(@Query('host') host?: string) {
     const cleanHost = String(host || '').trim().toLowerCase().split(':')[0].replace(/\.$/, '');
@@ -74,6 +87,21 @@ export class TenantBrandingController {
       where: { customDomain: cleanHost, isEnabled: true },
     });
     return this.effective(row, row?.tenantId || null);
+  }
+
+  @Get('assets/:tenantId/:kind')
+  async asset(@Param('tenantId') tenantId: string, @Param('kind') kind: string, @Res() res: any) {
+    if (kind !== 'logo' && kind !== 'favicon') throw new BadRequestException('Type de ressource invalide');
+    const row = await this.db.tenantBranding.findUnique({ where: { tenantId }, select: { isEnabled: true } });
+    if (!row?.isEnabled) return res.status(404).send('Ressource introuvable');
+    try {
+      await this.storage.head(this.assetKey(tenantId, kind));
+      const url = await this.storage.downloadUrl(this.assetKey(tenantId, kind), 'inline');
+      res.setHeader('Cache-Control', 'public, max-age=300');
+      return res.redirect(302, url);
+    } catch {
+      return res.status(404).send('Ressource introuvable');
+    }
   }
 
   @Get('current')
@@ -91,6 +119,23 @@ export class TenantBrandingController {
     await this.db.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { id: true } });
     const row = await this.db.tenantBranding.findUnique({ where: { tenantId } });
     return this.effective(row, tenantId);
+  }
+
+  @Post(':tenantId/asset-upload')
+  @UseGuards(JwtGuard)
+  async prepareAssetUpload(@Req() req: any, @Param('tenantId') tenantId: string, @Body() dto: BrandingAssetUploadDto) {
+    this.check(req);
+    await this.db.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { id: true } });
+    if (dto.kind === 'favicon' && !['image/png', 'image/x-icon', 'image/vnd.microsoft.icon'].includes(dto.mime)) {
+      throw new BadRequestException('Le favicon doit être un fichier PNG ou ICO.');
+    }
+    const key = this.assetKey(tenantId, dto.kind);
+    const uploadUrl = await this.storage.uploadUrl(key, dto.mime);
+    return {
+      uploadUrl,
+      assetUrl: `/api/tenant-branding/assets/${tenantId}/${dto.kind}?v=${Date.now()}`,
+      maxBytes: 5 * 1024 * 1024,
+    };
   }
 
   @Patch(':tenantId')
