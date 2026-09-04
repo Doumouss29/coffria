@@ -1,0 +1,3 @@
+.customBrandIdentity{display:grid;gap:10px;align-items:start;max-width:220px}.customBrandIdentity .brandCustom{margin:0}.brandLogoBelowName{min-height:0;max-width:220px;margin-top:0}.brandLogoBelowName .brandLogo{max-width:210px;max-height:72px;object-fit:contain;object-position:left center}.brandIdentityPlaceholder{height:48px;max-width:210px;border-radius:8px;background:rgba(255,255,255,.035)}
+
+@media(max-width:850px){.customBrandIdentity{max-width:240px}.brandLogoBelowName .brandLogo{max-width:220px;max-height:76px}}
