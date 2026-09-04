@@ -46,14 +46,14 @@ async function main() {
 
   const admin = await prisma.user.findUniqueOrThrow({ where: { email: 'admin@cabinet.local' } });
   const root =
-    (await prisma.folder.findFirst({ where: { tenantId: cabinet.id, parentId: null, name: 'Affaires 2026' } })) ??
-    (await prisma.folder.create({ data: { tenantId: cabinet.id, name: 'Affaires 2026', createdById: admin.id } }));
+    (await prisma.folder.findFirst({ where: { tenantId: cabinet.id, space: 'COMPANY', parentId: null, name: 'Affaires 2026' } })) ??
+    (await prisma.folder.create({ data: { tenantId: cabinet.id, space: 'COMPANY', name: 'Affaires 2026', createdById: admin.id } }));
 
   for (const name of ['Plans', 'Documents administratifs', 'Dossiers clôturés']) {
     await prisma.folder.upsert({
-      where: { tenantId_parentId_name: { tenantId: cabinet.id, parentId: root.id, name } },
+      where: { tenantId_space_parentId_name: { tenantId: cabinet.id, space: 'COMPANY', parentId: root.id, name } },
       update: {},
-      create: { tenantId: cabinet.id, parentId: root.id, name, createdById: admin.id },
+      create: { tenantId: cabinet.id, space: 'COMPANY', parentId: root.id, name, createdById: admin.id },
     });
   }
 
