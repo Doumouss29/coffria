@@ -17,11 +17,16 @@ const tenantLinks = [
   { href: '/settings', label: 'Paramètres', icon: Settings },
 ];
 
+function brandingCacheKey(tenantId?: string | null) {
+  return tenantId ? `coffria_branding_${tenantId}` : 'coffria_branding_default';
+}
+
 export function AppShell({ title, children }: { title: string; children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [branding, setBranding] = useState<Branding>(DEFAULT_BRANDING);
+  const [brandingReady, setBrandingReady] = useState(false);
   const [logoFailed, setLogoFailed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
@@ -41,14 +46,33 @@ export function AppShell({ title, children }: { title: string; children: React.R
     if (current.role === 'SUPER_ADMIN') {
       setBranding(DEFAULT_BRANDING);
       applyBranding(DEFAULT_BRANDING);
+      setBrandingReady(true);
     } else {
+      const cacheKey = brandingCacheKey(current.tenantId);
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        try {
+          const next = normalizeBranding(JSON.parse(cached));
+          setBranding(next);
+          applyBranding(next);
+          setBrandingReady(true);
+        } catch {
+          localStorage.removeItem(cacheKey);
+        }
+      }
+
       api('/tenant-branding/current').then((value) => {
         const next = normalizeBranding(value);
         setBranding(next);
         applyBranding(next);
+        localStorage.setItem(cacheKey, JSON.stringify(next));
+        setBrandingReady(true);
       }).catch(() => {
-        setBranding(DEFAULT_BRANDING);
-        applyBranding(DEFAULT_BRANDING);
+        if (!cached) {
+          setBranding(DEFAULT_BRANDING);
+          applyBranding(DEFAULT_BRANDING);
+          setBrandingReady(true);
+        }
       });
     }
 
@@ -123,15 +147,20 @@ export function AppShell({ title, children }: { title: string; children: React.R
     router.replace('/connexion');
   }
 
+  const identity = !brandingReady
+    ? <div className="brandIdentityPlaceholder" aria-hidden="true" />
+    : branding.isEnabled
+      ? <div className="customBrandIdentity">
+          <div className="brand brandCustom">{branding.appName}</div>
+          {branding.logoUrl && !logoFailed && <div className="brandLogoWrap brandLogoBelowName"><img className="brandLogo" src={branding.logoUrl} alt={`Logo ${branding.appName}`} referrerPolicy="no-referrer" onError={()=>setLogoFailed(true)} /></div>}
+        </div>
+      : <div className="brand">Coffr<span>i</span>a</div>;
+
   const navigation = <>
-    {branding.isEnabled && branding.logoUrl && !logoFailed
-      ? <div className="brandLogoWrap"><img className="brandLogo" src={branding.logoUrl} alt={branding.appName} onError={()=>setLogoFailed(true)} /></div>
-      : branding.isEnabled
-        ? <div className="brand brandCustom">{branding.appName}</div>
-        : <div className="brand">Coffr<span>i</span>a</div>}
-    {branding.isEnabled
+    {identity}
+    {brandingReady && (branding.isEnabled
       ? (branding.poweredByCoffria && <div className="seller">Propulsé par Coffria</div>)
-      : <div className="seller">Une solution LMurbs</div>}
+      : <div className="seller">Une solution LMurbs</div>)}
     <nav className="nav">
       {links.map(({ href, label, icon: Icon }) => (
         <Link key={href} href={href} className={pathname === href || pathname.startsWith(`${href}/`) ? 'active' : ''}>
