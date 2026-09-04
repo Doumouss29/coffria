@@ -78,6 +78,7 @@ export class TenantsController {
     return tenants.map((tenant) => ({
       ...tenant,
       quotaGb: Number(tenant.storageQuotaBytes / 1073741824n),
+      companyQuotaGb: Number(tenant.companyStorageQuotaBytes / 1073741824n),
       admins: tenant.users,
       admin: tenant.users[0] || null,
       users: undefined,
@@ -90,10 +91,12 @@ export class TenantsController {
     const slugBase = dto.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     const slug = `${slugBase}-${Date.now().toString(36)}`;
     return this.db.$transaction(async (tx) => {
+      const totalBytes = BigInt(dto.quotaGb) * 1073741824n;
       const tenant = await tx.tenant.create({
         data: {
           name: dto.name.trim(), slug,
-          storageQuotaBytes: BigInt(dto.quotaGb) * 1073741824n,
+          storageQuotaBytes: totalBytes,
+          companyStorageQuotaBytes: totalBytes,
           maxUsers: dto.maxUsers,
           subscriptionExpiresAt: dto.subscriptionExpiresAt ? new Date(dto.subscriptionExpiresAt) : null,
         },
@@ -108,13 +111,22 @@ export class TenantsController {
         },
         select: { id: true, name: true, email: true, role: true, status: true, createdAt: true },
       });
-      return { ...tenant, quotaGb: dto.quotaGb, admin, admins: [admin] };
+      return { ...tenant, quotaGb: dto.quotaGb, companyQuotaGb: dto.quotaGb, admin, admins: [admin] };
     });
   }
 
   @Patch(':id')
   async update(@Req() req: any, @Param('id') id: string, @Body() dto: UpdateTenantDto) {
     this.check(req);
+    const current = await this.db.tenant.findUniqueOrThrow({ where: { id } });
+    if (dto.quotaGb !== undefined) {
+      const nextTotal = BigInt(dto.quotaGb) * 1073741824n;
+      const userAllocations = await this.db.user.aggregate({ _sum: { personalStorageQuotaBytes: true }, where: { tenantId: id } });
+      const allocated = current.companyStorageQuotaBytes + (userAllocations._sum.personalStorageQuotaBytes || 0n);
+      if (nextTotal < allocated) {
+        throw new BadRequestException('Le nouveau quota total est inférieur aux volumes déjà alloués par l’administrateur de l’entreprise.');
+      }
+    }
     const data: any = {};
     if (dto.name !== undefined) data.name = dto.name.trim();
     if (dto.quotaGb !== undefined) data.storageQuotaBytes = BigInt(dto.quotaGb) * 1073741824n;
@@ -122,7 +134,11 @@ export class TenantsController {
     if (dto.active !== undefined) data.active = dto.active;
     if (dto.subscriptionExpiresAt !== undefined) data.subscriptionExpiresAt = dto.subscriptionExpiresAt ? new Date(dto.subscriptionExpiresAt) : null;
     const tenant = await this.db.tenant.update({ where: { id }, data });
-    return { ...tenant, quotaGb: Number(tenant.storageQuotaBytes / 1073741824n) };
+    return {
+      ...tenant,
+      quotaGb: Number(tenant.storageQuotaBytes / 1073741824n),
+      companyQuotaGb: Number(tenant.companyStorageQuotaBytes / 1073741824n),
+    };
   }
 
   @Delete(':id')
