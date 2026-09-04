@@ -61,21 +61,22 @@ enum SignatureRecipientStatus {
 }
 
 model Tenant {
-  id                    String   @id @default(uuid())
-  name                  String
-  slug                  String   @unique
-  storageQuotaBytes     BigInt   @default(107374182400)
-  maxUsers              Int      @default(10)
-  maxFileSizeBytes      BigInt   @default(5368709120)
-  active                Boolean  @default(true)
-  signatureEnabled      Boolean  @default(true)
-  signatureUsageLimit   Int?
-  signatureUsageUsed    Int      @default(0)
-  subscriptionExpiresAt DateTime?
-  mfaAllowTotp          Boolean  @default(true)
-  mfaAllowEmail         Boolean  @default(true)
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id                       String   @id @default(uuid())
+  name                     String
+  slug                     String   @unique
+  storageQuotaBytes        BigInt   @default(107374182400)
+  companyStorageQuotaBytes BigInt   @default(0)
+  maxUsers                 Int      @default(10)
+  maxFileSizeBytes         BigInt   @default(5368709120)
+  active                   Boolean  @default(true)
+  signatureEnabled         Boolean  @default(true)
+  signatureUsageLimit      Int?
+  signatureUsageUsed       Int      @default(0)
+  subscriptionExpiresAt    DateTime?
+  mfaAllowTotp             Boolean  @default(true)
+  mfaAllowEmail            Boolean  @default(true)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 
   users             User[]
   folders           Folder[]
@@ -88,21 +89,22 @@ model Tenant {
 }
 
 model User {
-  id                 String       @id @default(uuid())
-  tenantId           String?
-  tenant             Tenant?      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  name               String
-  email              String       @unique
-  passwordHash       String
-  role               PlatformRole
-  status             UserStatus   @default(ACTIVE)
-  mfaEnabled         Boolean      @default(false)
-  mfaMethod          MfaMethod?
-  mfaSecretEncrypted String?
-  mfaRecoveryCodes   Json         @default("[]")
-  mfaConfiguredAt    DateTime?
-  createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
+  id                        String       @id @default(uuid())
+  tenantId                  String?
+  tenant                    Tenant?      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name                      String
+  email                     String       @unique
+  passwordHash              String
+  role                      PlatformRole
+  status                    UserStatus   @default(ACTIVE)
+  personalStorageQuotaBytes BigInt       @default(0)
+  mfaEnabled                Boolean      @default(false)
+  mfaMethod                 MfaMethod?
+  mfaSecretEncrypted        String?
+  mfaRecoveryCodes          Json         @default("[]")
+  mfaConfiguredAt           DateTime?
+  createdAt                 DateTime     @default(now())
+  updatedAt                 DateTime     @updatedAt
 
   foldersCreated       Folder[]            @relation("FolderCreator")
   docsCreated          Document[]          @relation("DocumentCreator")
