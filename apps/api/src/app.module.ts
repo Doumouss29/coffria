@@ -28,6 +28,7 @@ import { SignatureSubscriptionController } from './signature-subscription.contro
 import { SignatureWorkspaceController } from './signature-workspace.controller';
 import { AiController } from './ai.controller';
 import { AnalyticsController } from './analytics.controller';
+import { StorageAllocationController } from './storage-allocation.controller';
 import { ArchiveAiService } from './archive-ai.service';
 import { DocumentConversionService } from './document-conversion.service';
 import { UploadCleanupService } from './upload-cleanup.service';
@@ -64,6 +65,7 @@ import { UploadCleanupService } from './upload-cleanup.service';
     SignatureWorkspaceController,
     AiController,
     AnalyticsController,
+    StorageAllocationController,
   ],
   providers: [
     PrismaService,
