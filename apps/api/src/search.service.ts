@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
 import { ArchiveAiService } from './archive-ai.service';
 
+type Space = 'COMPANY' | 'PERSONAL';
+
 @Injectable()
 export class SearchService {
   constructor(private db: PrismaService, private ai: ArchiveAiService) {}
@@ -13,6 +15,10 @@ export class SearchService {
       .replace(/[\u0300-\u036f]/g, '')
       .replace(/\s+/g, ' ')
       .trim();
+  }
+
+  private normalizeSpace(value?: string): Space {
+    return value === 'PERSONAL' ? 'PERSONAL' : 'COMPANY';
   }
 
   private variants(value: string) {
@@ -46,10 +52,10 @@ export class SearchService {
     if ((m = s.match(/(?:se termine|finit) par ["']?([^"']+)["']?/i))) f.nameEndsWith = m[1].trim();
     if ((m = s.match(/\b(pdf|docx?|xlsx?|pptx?|zip|jpg|jpeg|png|tiff?|dwg|dxf|txt|csv)\b/i))) f.extension = m[1].toLowerCase();
 
-    if ((m = s.match(/(?:plus de|supérieur à)\s*(\d+)\s*(ko|mo|go)/i))) {
+    if ((m = s.match(/(?:plus de|supérieur à)\s*(\d+)\s*(ko|mo|go|to)/i))) {
       const n = Number(m[1]);
       const u = m[2].toLowerCase();
-      f.minBytes = n * (u === 'go' ? 1073741824 : u === 'mo' ? 1048576 : 1024);
+      f.minBytes = n * (u === 'to' ? 1099511627776 : u === 'go' ? 1073741824 : u === 'mo' ? 1048576 : 1024);
     }
 
     const contentPatterns = [
@@ -70,10 +76,11 @@ export class SearchService {
     return f;
   }
 
-  private folderAccess(user: any) {
-    if (user.role === 'TENANT_ADMIN') return undefined;
+  private folderAccess(user: any, space: Space) {
+    if (space === 'COMPANY' && user.role === 'TENANT_ADMIN') return { space: 'COMPANY' };
 
     return {
+      space,
       OR: [
         { visibility: 'COMPANY' },
         { createdById: user.sub },
@@ -93,15 +100,14 @@ export class SearchService {
     };
   }
 
-  private buildWhere(user: any, q: string, f: any) {
+  private buildWhere(user: any, q: string, f: any, space: Space) {
     const where: any = {
       tenantId: user.tenantId,
       deletedAt: null,
       status: 'ACTIVE',
+      folder: this.folderAccess(user, space),
     };
 
-    const folder = this.folderAccess(user);
-    if (folder) where.folder = folder;
     if (f.extension) where.extension = f.extension;
     if (f.minBytes) where.sizeBytes = { gte: BigInt(f.minBytes) };
 
@@ -124,19 +130,19 @@ export class SearchService {
     return where;
   }
 
-  private async find(user: any, q: string, f: any, sort: string) {
+  private async find(user: any, q: string, f: any, sort: string, space: Space) {
     return this.db.document.findMany({
-      where: this.buildWhere(user, q, f),
+      where: this.buildWhere(user, q, f, space),
       take: 100,
       orderBy: sort === 'newest' ? { createdAt: 'desc' } : { name: 'asc' },
       include: {
-        folder: { select: { name: true } },
+        folder: { select: { name: true, space: true } },
         createdBy: { select: { name: true } },
       },
     });
   }
 
-  private async indexMissingAccessibleDocuments(user: any) {
+  private async indexMissingAccessibleDocuments(user: any, space: Space) {
     const where: any = {
       tenantId: user.tenantId,
       deletedAt: null,
@@ -145,10 +151,8 @@ export class SearchService {
       extension: {
         in: ['pdf', 'txt', 'csv', 'json', 'xml', 'md', 'dxf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt', 'odt', 'ods', 'odp'],
       },
+      folder: this.folderAccess(user, space),
     };
-
-    const folder = this.folderAccess(user);
-    if (folder) where.folder = folder;
 
     const missing = await this.db.document.findMany({
       where,
@@ -166,17 +170,19 @@ export class SearchService {
     return missing.length;
   }
 
-  async run(user: any, q: string, sort = 'relevance') {
+  async run(user: any, q: string, sort = 'relevance', requestedSpace = 'COMPANY') {
+    const space = this.normalizeSpace(requestedSpace);
     const f = this.parse(q);
-    let docs = await this.find(user, q, f, sort);
+    let docs = await this.find(user, q, f, sort, space);
 
     if (!docs.length && q.trim()) {
-      const indexed = await this.indexMissingAccessibleDocuments(user);
-      if (indexed) docs = await this.find(user, q, f, sort);
+      const indexed = await this.indexMissingAccessibleDocuments(user, space);
+      if (indexed) docs = await this.find(user, q, f, sort, space);
     }
 
     return {
       query: q,
+      space,
       normalizedQuery: this.normalize(q),
       interpretedFilters: f,
       documents: docs,
