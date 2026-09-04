@@ -43,7 +43,7 @@ export class ExplorerController {
     if (req.user.role === 'VIEWER') throw new ForbiddenException('Action interdite');
   }
   private normalizeSpace(value?: string): Space {
-    return value === 'PERSONAL' ? 'PERSONAL' : 'COMPANY';
+    return value === 'COMPANY' ? 'COMPANY' : 'PERSONAL';
   }
   private directAccessWhere(req: any): any {
     return {
@@ -100,8 +100,37 @@ export class ExplorerController {
     throw new NotFoundException('Dossier introuvable ou accès non autorisé');
   }
 
+  private async quotaState(req: any, space: Space) {
+    const tenantId = this.tenant(req);
+    const [tenant, user] = await Promise.all([
+      this.db.tenant.findUniqueOrThrow({ where: { id: tenantId } }),
+      space === 'PERSONAL'
+        ? this.db.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { personalStorageQuotaBytes: true } })
+        : Promise.resolve(null),
+    ]);
+    const folderFilter = space === 'PERSONAL'
+      ? { space: 'PERSONAL' as const, createdById: req.user.sub }
+      : { space: 'COMPANY' as const };
+    const [usage, pending] = await Promise.all([
+      this.db.document.aggregate({
+        _sum: { sizeBytes: true },
+        where: { tenantId, deletedAt: null, status: 'ACTIVE', folder: folderFilter },
+      }),
+      this.db.document.aggregate({
+        _sum: { sizeBytes: true },
+        where: { tenantId, deletedAt: null, status: 'PENDING_UPLOAD', folder: folderFilter },
+      }),
+    ]);
+    return {
+      usedBytes: usage._sum.sizeBytes || 0n,
+      pendingBytes: pending._sum.sizeBytes || 0n,
+      limitBytes: space === 'PERSONAL' ? (user?.personalStorageQuotaBytes || 0n) : tenant.companyStorageQuotaBytes,
+      tenant,
+    };
+  }
+
   @Get()
-  async list(@Req() req: any, @Query('folderId') folderId?: string, @Query('sort') sort = 'name', @Query('direction') direction = 'asc', @Query('space') requestedSpace = 'COMPANY') {
+  async list(@Req() req: any, @Query('folderId') folderId?: string, @Query('sort') sort = 'name', @Query('direction') direction = 'asc', @Query('space') requestedSpace = 'PERSONAL') {
     const tenantId = this.tenant(req);
     const space = this.normalizeSpace(requestedSpace);
     const allowed = ['name', 'sizeBytes', 'createdAt', 'updatedAt', 'mimeType'];
@@ -140,7 +169,7 @@ export class ExplorerController {
             ],
           };
 
-    const [folders, documents, tenant] = await Promise.all([
+    const [folders, documents, quota] = await Promise.all([
       this.db.folder.findMany({
         where: folderWhere as any,
         orderBy: { name: dir as any },
@@ -151,13 +180,20 @@ export class ExplorerController {
         orderBy: { [sort]: dir } as any,
         include: { createdBy: { select: { name: true } } },
       }) : [],
-      this.db.tenant.findUniqueOrThrow({ where: { id: tenantId } }),
+      this.quotaState(req, space),
     ]);
-    const [usage, pending] = await Promise.all([
-      this.db.document.aggregate({ _sum: { sizeBytes: true }, where: { tenantId, deletedAt: null, status: 'ACTIVE' } }),
-      this.db.document.aggregate({ _sum: { sizeBytes: true }, where: { tenantId, deletedAt: null, status: 'PENDING_UPLOAD' } }),
-    ]);
-    return { space, currentFolder, breadcrumbs, folders, documents, quota: { usedBytes: String(usage._sum.sizeBytes || 0), pendingBytes: String(pending._sum.sizeBytes || 0), limitBytes: String(tenant.storageQuotaBytes) } };
+    return {
+      space,
+      currentFolder,
+      breadcrumbs,
+      folders,
+      documents,
+      quota: {
+        usedBytes: String(quota.usedBytes),
+        pendingBytes: String(quota.pendingBytes),
+        limitBytes: String(quota.limitBytes),
+      },
+    };
   }
 
   @Post('folders')
@@ -167,6 +203,9 @@ export class ExplorerController {
     if (!name) throw new BadRequestException('Nom du dossier requis');
     const parent = dto.parentId ? await this.folderOrThrow(req, dto.parentId) : null;
     const space = parent ? parent.space as Space : this.normalizeSpace(dto.space);
+    if (parent?.space === 'PERSONAL' && parent.createdById !== req.user.sub) {
+      throw new ForbiddenException('Vous ne pouvez pas créer de sous-dossier dans l’espace personnel d’un autre utilisateur.');
+    }
     const visibility = dto.visibility || (space === 'PERSONAL' ? 'PRIVATE' : 'COMPANY');
     const userIds = [...new Set(dto.userIds || [])]; const groupIds = [...new Set(dto.groupIds || [])];
     if (visibility === 'RESTRICTED' && !userIds.length && !groupIds.length) throw new BadRequestException('Sélectionnez au moins une personne ou un groupe');
@@ -290,12 +329,21 @@ export class ExplorerController {
 
   @Post('uploads/prepare')
   async prepare(@Req() req: any, @Body() dto: PrepareUploadDto) {
-    this.canWrite(req); const tenantId = this.tenant(req); await this.folderOrThrow(req, dto.folderId);
+    this.canWrite(req);
+    const tenantId = this.tenant(req);
+    const folder = await this.folderOrThrow(req, dto.folderId);
+    if (folder.space === 'PERSONAL' && folder.createdById !== req.user.sub) {
+      throw new ForbiddenException('Vous ne pouvez pas importer de document dans l’espace personnel d’un autre utilisateur.');
+    }
     await this.cleanupPending(tenantId);
-    const tenant = await this.db.tenant.findUniqueOrThrow({ where: { id: tenantId } });
-    if (BigInt(dto.sizeBytes) > tenant.maxFileSizeBytes) throw new BadRequestException('Fichier trop volumineux');
-    const used = (await this.db.document.aggregate({ _sum: { sizeBytes: true }, where: { tenantId, deletedAt: null, status: { in: ['ACTIVE', 'PENDING_UPLOAD'] } } }))._sum.sizeBytes || 0n;
-    if (used + BigInt(dto.sizeBytes) > tenant.storageQuotaBytes) throw new BadRequestException('Quota de stockage dépassé');
+    const quota = await this.quotaState(req, folder.space as Space);
+    if (BigInt(dto.sizeBytes) > quota.tenant.maxFileSizeBytes) throw new BadRequestException('Fichier trop volumineux');
+    if (quota.limitBytes <= 0n) {
+      throw new BadRequestException(folder.space === 'PERSONAL' ? 'Aucun espace personnel ne vous a encore été alloué.' : 'Aucun espace de stockage n’est alloué à l’espace entreprise.');
+    }
+    if (quota.usedBytes + quota.pendingBytes + BigInt(dto.sizeBytes) > quota.limitBytes) {
+      throw new BadRequestException(folder.space === 'PERSONAL' ? 'Quota de votre espace personnel dépassé' : 'Quota de l’espace entreprise dépassé');
+    }
     const id = randomUUID(); const safe = dto.name.replace(/[^a-zA-Z0-9._-]+/g, '_');
     const key = `tenants/${tenantId}/documents/${id}/versions/1/${safe}`;
     const multipartThreshold = 64 * 1024 * 1024;
@@ -376,7 +424,8 @@ export class ExplorerController {
     this.canWrite(req);
     const doc = await this.db.document.findFirst({ where: { id, tenantId: this.tenant(req), deletedAt: null, status: 'ACTIVE' } });
     if (!doc) throw new NotFoundException('Document introuvable');
-    await this.folderOrThrow(req, doc.folderId);
+    const folder = await this.folderOrThrow(req, doc.folderId);
+    if (folder.space === 'PERSONAL' && folder.createdById !== req.user.sub) throw new ForbiddenException('Seul le propriétaire peut modifier ce document personnel');
     const name = dto.name.trim();
     if (!name) throw new BadRequestException('Nom du document requis');
     return this.db.document.update({ where: { id }, data: { name, extension: name.includes('.') ? name.split('.').pop()?.toLowerCase() : null } });
@@ -387,7 +436,8 @@ export class ExplorerController {
     this.canWrite(req);
     const doc = await this.db.document.findFirst({ where: { id, tenantId: this.tenant(req), deletedAt: null } });
     if (!doc) throw new NotFoundException('Document introuvable');
-    await this.folderOrThrow(req, doc.folderId);
+    const folder = await this.folderOrThrow(req, doc.folderId);
+    if (folder.space === 'PERSONAL' && folder.createdById !== req.user.sub) throw new ForbiddenException('Seul le propriétaire peut supprimer ce document personnel');
     await this.db.document.update({ where: { id }, data: { deletedAt: new Date(), status: 'TRASHED' } });
     return { success: true };
   }
