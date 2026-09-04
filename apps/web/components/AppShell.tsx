@@ -22,6 +22,7 @@ export function AppShell({ title, children }: { title: string; children: React.R
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [branding, setBranding] = useState<Branding>(DEFAULT_BRANDING);
+  const [logoFailed, setLogoFailed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
@@ -65,6 +66,7 @@ export function AppShell({ title, children }: { title: string; children: React.R
     }
   }, [router]);
 
+  useEffect(() => { setLogoFailed(false); }, [branding.logoUrl]);
   useEffect(() => { setMobileNavOpen(false); }, [pathname]);
 
   useEffect(() => {
@@ -122,8 +124,8 @@ export function AppShell({ title, children }: { title: string; children: React.R
   }
 
   const navigation = <>
-    {branding.isEnabled && branding.logoUrl
-      ? <div className="brandLogoWrap"><img className="brandLogo" src={branding.logoUrl} alt={branding.appName} /></div>
+    {branding.isEnabled && branding.logoUrl && !logoFailed
+      ? <div className="brandLogoWrap"><img className="brandLogo" src={branding.logoUrl} alt={branding.appName} onError={()=>setLogoFailed(true)} /></div>
       : branding.isEnabled
         ? <div className="brand brandCustom">{branding.appName}</div>
         : <div className="brand">Coffr<span>i</span>a</div>}
