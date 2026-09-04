@@ -31,6 +31,11 @@ enum FolderVisibility {
   RESTRICTED
 }
 
+enum FolderSpace {
+  COMPANY
+  PERSONAL
+}
+
 enum DocumentStatus {
   PENDING_UPLOAD
   ACTIVE
@@ -151,13 +156,15 @@ model Folder {
   updatedAt   DateTime @updatedAt
   deletedAt   DateTime?
   visibility  FolderVisibility @default(COMPANY)
+  space       FolderSpace      @default(COMPANY)
 
   documents     Document[]
   userAccesses  FolderUserAccess[]
   groupAccesses FolderGroupAccess[]
 
   @@index([tenantId, parentId, deletedAt])
-  @@unique([tenantId, parentId, name])
+  @@index([tenantId, space, parentId, deletedAt])
+  @@unique([tenantId, space, parentId, name])
 }
 
 model Group {
@@ -293,8 +300,8 @@ model SignatureRecipient {
   userAgent     String?
   signatureText String?
   evidence      Json                     @default("{}")
-  createdAt     DateTime                 @default(now())
-  updatedAt     DateTime                 @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@unique([requestId, order])
   @@index([requestId, status])
