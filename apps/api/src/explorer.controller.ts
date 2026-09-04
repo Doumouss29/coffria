@@ -6,9 +6,12 @@ import { JwtGuard } from './jwt.guard';
 import { PrismaService } from './prisma.service';
 import { StorageService } from './storage.service';
 
+type Space = 'COMPANY' | 'PERSONAL';
+
 class FolderDto {
   @IsString() name!: string;
   @IsOptional() @IsString() parentId?: string;
+  @IsOptional() @IsIn(['COMPANY', 'PERSONAL']) space?: Space;
   @IsOptional() @IsIn(['COMPANY', 'PRIVATE', 'RESTRICTED']) visibility?: 'COMPANY' | 'PRIVATE' | 'RESTRICTED';
   @IsOptional() @IsArray() @IsString({ each: true }) userIds?: string[];
   @IsOptional() @IsArray() @IsString({ each: true }) groupIds?: string[];
@@ -39,12 +42,13 @@ export class ExplorerController {
   private canWrite(req: any): void {
     if (req.user.role === 'VIEWER') throw new ForbiddenException('Action interdite');
   }
-  private canAdmin(req: any): void {
-    if (!['SUPER_ADMIN', 'TENANT_ADMIN'].includes(req.user.role)) throw new ForbiddenException('Action réservée aux administrateurs');
+  private normalizeSpace(value?: string): Space {
+    return value === 'PERSONAL' ? 'PERSONAL' : 'COMPANY';
   }
-  private accessWhere(req: any): any {
-    if (req.user.role === 'TENANT_ADMIN') return {};
+  private accessWhere(req: any, space: Space): any {
+    if (space === 'COMPANY' && req.user.role === 'TENANT_ADMIN') return { space: 'COMPANY' };
     return {
+      space,
       OR: [
         { visibility: 'COMPANY' },
         { createdById: req.user.sub },
@@ -54,16 +58,20 @@ export class ExplorerController {
     };
   }
   private async folderOrThrow(req: any, id: string) {
+    const tenantId = this.tenant(req);
+    const probe = await this.db.folder.findFirst({ where: { id, tenantId, deletedAt: null }, select: { id: true, space: true } });
+    if (!probe) throw new NotFoundException('Dossier introuvable ou accès non autorisé');
     const folder = await this.db.folder.findFirst({
-      where: { id, tenantId: this.tenant(req), deletedAt: null, ...this.accessWhere(req) },
+      where: { id, tenantId, deletedAt: null, ...this.accessWhere(req, probe.space as Space) },
     });
     if (!folder) throw new NotFoundException('Dossier introuvable ou accès non autorisé');
     return folder;
   }
 
   @Get()
-  async list(@Req() req: any, @Query('folderId') folderId?: string, @Query('sort') sort = 'name', @Query('direction') direction = 'asc') {
+  async list(@Req() req: any, @Query('folderId') folderId?: string, @Query('sort') sort = 'name', @Query('direction') direction = 'asc', @Query('space') requestedSpace = 'COMPANY') {
     const tenantId = this.tenant(req);
+    const space = this.normalizeSpace(requestedSpace);
     const allowed = ['name', 'sizeBytes', 'createdAt', 'updatedAt', 'mimeType'];
     if (!allowed.includes(sort)) sort = 'name';
     const dir = direction === 'desc' ? 'desc' : 'asc';
@@ -71,17 +79,18 @@ export class ExplorerController {
     let breadcrumbs: Array<{ id: string; name: string }> = [];
     if (folderId) {
       currentFolder = await this.folderOrThrow(req, folderId);
+      if (currentFolder.space !== space) throw new BadRequestException('Ce dossier appartient à un autre espace');
       const trail: Array<{ id: string; name: string }> = [];
       let cursor: any = currentFolder;
       while (cursor) {
         trail.unshift({ id: cursor.id, name: cursor.name });
-        cursor = cursor.parentId ? await this.db.folder.findFirst({ where: { id: cursor.parentId, tenantId, deletedAt: null } }) : null;
+        cursor = cursor.parentId ? await this.db.folder.findFirst({ where: { id: cursor.parentId, tenantId, deletedAt: null, space } }) : null;
       }
       breadcrumbs = trail;
     }
     const [folders, documents, tenant] = await Promise.all([
       this.db.folder.findMany({
-        where: { tenantId, parentId: folderId || null, deletedAt: null, ...this.accessWhere(req) },
+        where: { tenantId, parentId: folderId || null, deletedAt: null, ...this.accessWhere(req, space) },
         orderBy: { name: dir as any },
         include: { createdBy: { select: { name: true } } },
       }),
@@ -96,7 +105,7 @@ export class ExplorerController {
       this.db.document.aggregate({ _sum: { sizeBytes: true }, where: { tenantId, deletedAt: null, status: 'ACTIVE' } }),
       this.db.document.aggregate({ _sum: { sizeBytes: true }, where: { tenantId, deletedAt: null, status: 'PENDING_UPLOAD' } }),
     ]);
-    return { currentFolder, breadcrumbs, folders, documents, quota: { usedBytes: String(usage._sum.sizeBytes || 0), pendingBytes: String(pending._sum.sizeBytes || 0), limitBytes: String(tenant.storageQuotaBytes) } };
+    return { space, currentFolder, breadcrumbs, folders, documents, quota: { usedBytes: String(usage._sum.sizeBytes || 0), pendingBytes: String(pending._sum.sizeBytes || 0), limitBytes: String(tenant.storageQuotaBytes) } };
   }
 
   @Post('folders')
@@ -104,8 +113,9 @@ export class ExplorerController {
     this.canWrite(req);
     const tenantId = this.tenant(req); const name = dto.name.trim();
     if (!name) throw new BadRequestException('Nom du dossier requis');
-    if (dto.parentId) await this.folderOrThrow(req, dto.parentId);
-    const visibility = dto.visibility || 'COMPANY';
+    const parent = dto.parentId ? await this.folderOrThrow(req, dto.parentId) : null;
+    const space = parent ? parent.space as Space : this.normalizeSpace(dto.space);
+    const visibility = dto.visibility || (space === 'PERSONAL' ? 'PRIVATE' : 'COMPANY');
     const userIds = [...new Set(dto.userIds || [])]; const groupIds = [...new Set(dto.groupIds || [])];
     if (visibility === 'RESTRICTED' && !userIds.length && !groupIds.length) throw new BadRequestException('Sélectionnez au moins une personne ou un groupe');
     if (userIds.length) {
@@ -118,7 +128,7 @@ export class ExplorerController {
     }
     return this.db.folder.create({
       data: {
-        tenantId, parentId: dto.parentId || null, name, createdById: req.user.sub, visibility,
+        tenantId, parentId: dto.parentId || null, name, createdById: req.user.sub, visibility, space,
         userAccesses: visibility === 'RESTRICTED' ? { create: userIds.filter(id => id !== req.user.sub).map(userId => ({ userId })) } : undefined,
         groupAccesses: visibility === 'RESTRICTED' ? { create: groupIds.map(groupId => ({ groupId })) } : undefined,
       },
@@ -130,18 +140,22 @@ export class ExplorerController {
   async getFolderAccess(@Req() req: any, @Param('id') id: string) {
     this.canWrite(req);
     const folder = await this.folderOrThrow(req, id);
-    if (req.user.role !== 'TENANT_ADMIN' && folder.createdById !== req.user.sub) {
+    if (folder.space === 'PERSONAL' && folder.createdById !== req.user.sub) {
+      throw new ForbiddenException('Seul le propriétaire peut gérer le partage de ce dossier personnel');
+    }
+    if (folder.space === 'COMPANY' && req.user.role !== 'TENANT_ADMIN' && folder.createdById !== req.user.sub) {
       throw new ForbiddenException('Seul le créateur ou un administrateur peut gérer les accès de ce dossier');
     }
     const full = await this.db.folder.findUniqueOrThrow({
       where: { id },
       select: {
-        id: true, visibility: true,
+        id: true, visibility: true, space: true,
         userAccesses: { select: { userId: true } },
         groupAccesses: { select: { groupId: true } },
       },
     });
     return {
+      space: full.space,
       visibility: full.visibility,
       userIds: full.userAccesses.map((access) => access.userId),
       groupIds: full.groupAccesses.map((access) => access.groupId),
@@ -153,7 +167,10 @@ export class ExplorerController {
     this.canWrite(req);
     const tenantId = this.tenant(req);
     const folder = await this.folderOrThrow(req, id);
-    if (req.user.role !== 'TENANT_ADMIN' && folder.createdById !== req.user.sub) {
+    if (folder.space === 'PERSONAL' && folder.createdById !== req.user.sub) {
+      throw new ForbiddenException('Seul le propriétaire peut gérer le partage de ce dossier personnel');
+    }
+    if (folder.space === 'COMPANY' && req.user.role !== 'TENANT_ADMIN' && folder.createdById !== req.user.sub) {
       throw new ForbiddenException('Seul le créateur ou un administrateur peut gérer les accès de ce dossier');
     }
     const userIds = [...new Set(dto.userIds || [])].filter((userId) => userId !== req.user.sub);
@@ -186,15 +203,17 @@ export class ExplorerController {
   @Patch('folders/:id')
   async renameFolder(@Req() req: any, @Param('id') id: string, @Body() dto: RenameDto) {
     this.canWrite(req); const folder = await this.folderOrThrow(req, id);
-    if (req.user.role !== 'TENANT_ADMIN' && folder.createdById !== req.user.sub) throw new ForbiddenException('Seul le créateur ou un administrateur peut renommer ce dossier');
+    if (folder.space === 'PERSONAL' && folder.createdById !== req.user.sub) throw new ForbiddenException('Seul le propriétaire peut renommer ce dossier personnel');
+    if (folder.space === 'COMPANY' && req.user.role !== 'TENANT_ADMIN' && folder.createdById !== req.user.sub) throw new ForbiddenException('Seul le créateur ou un administrateur peut renommer ce dossier');
     return this.db.folder.update({ where: { id }, data: { name: dto.name.trim() } });
   }
 
   @Delete('folders/:id')
   async trashFolder(@Req() req: any, @Param('id') id: string) {
-    this.canAdmin(req); const tenantId = this.tenant(req);
-    const folder = await this.db.folder.findFirst({ where: { id, tenantId, deletedAt: null } });
-    if (!folder) throw new NotFoundException('Dossier introuvable');
+    this.canWrite(req); const tenantId = this.tenant(req);
+    const folder = await this.folderOrThrow(req, id);
+    if (folder.space === 'PERSONAL' && folder.createdById !== req.user.sub) throw new ForbiddenException('Seul le propriétaire peut supprimer ce dossier personnel');
+    if (folder.space === 'COMPANY' && req.user.role !== 'TENANT_ADMIN') throw new ForbiddenException('Action réservée à l’administrateur dans l’espace entreprise');
     const now = new Date();
     await this.db.$transaction([
       this.db.folder.updateMany({ where: { id, tenantId }, data: { deletedAt: now } }),
@@ -235,7 +254,6 @@ export class ExplorerController {
     const doc = await this.db.document.create({ data: { id, tenantId, folderId: dto.folderId, technicalNumber: `COF-${new Date().getFullYear()}-${id.slice(0, 8).toUpperCase()}`, name: dto.name, extension: dto.name.includes('.') ? dto.name.split('.').pop()?.toLowerCase() : null, mimeType: dto.mimeType || 'application/octet-stream', sizeBytes: BigInt(dto.sizeBytes), storageKey: key, createdById: req.user.sub, metadata: multipart ? ({ uploadId, multipart: true, partSize } as any) : ({ multipart: false } as any) } });
     if (multipart) {
       const partCount = Math.ceil(dto.sizeBytes / partSize);
-      // Pré-signature en lot : évite un aller-retour API avant chaque bloc.
       const partUrls = await Promise.all(
         Array.from({ length: partCount }, (_, index) =>
           this.storage.multipartPartUrl(key, uploadId!, index + 1),
