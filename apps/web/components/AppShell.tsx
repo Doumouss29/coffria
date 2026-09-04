@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '../lib/api';
 
 const tenantLinks = [
-  { href: '/explorer', label: 'Mes dossiers', icon: Folder },
+  { href: '/explorer', label: 'Documents', icon: Folder },
   { href: '/signatures', label: 'Espace signature', icon: FileSignature },
   { href: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
   { href: '/users', label: 'Utilisateurs', icon: Users },
@@ -28,8 +28,6 @@ export function AppShell({ title, children }: { title: string; children: React.R
     const current = JSON.parse(raw);
     setUser(current);
 
-    // Le cookie HttpOnly n'est pas lisible en JavaScript : on valide la
-    // session auprès de l'API au chargement de l'espace authentifié.
     api('/auth/mfa/status').catch(() => {
       localStorage.removeItem('coffria_user');
       localStorage.removeItem('coffria_token');
