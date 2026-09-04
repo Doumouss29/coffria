@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { BarChart3, Building2, FileSignature, FileText, Folder, LayoutDashboard, LogOut, Megaphone, Menu, Settings, ShieldCheck, Trash2, Users, UsersRound, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../lib/api';
+import { applyBranding, Branding, DEFAULT_BRANDING, normalizeBranding } from '../lib/branding';
 
 const tenantLinks = [
   { href: '/explorer', label: 'Documents', icon: Folder },
@@ -20,6 +21,7 @@ export function AppShell({ title, children }: { title: string; children: React.R
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
+  const [branding, setBranding] = useState<Branding>(DEFAULT_BRANDING);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
@@ -34,6 +36,20 @@ export function AppShell({ title, children }: { title: string; children: React.R
       localStorage.removeItem('coffria_trusted_device');
       router.replace('/connexion');
     });
+
+    if (current.role === 'SUPER_ADMIN') {
+      setBranding(DEFAULT_BRANDING);
+      applyBranding(DEFAULT_BRANDING);
+    } else {
+      api('/tenant-branding/current').then((value) => {
+        const next = normalizeBranding(value);
+        setBranding(next);
+        applyBranding(next);
+      }).catch(() => {
+        setBranding(DEFAULT_BRANDING);
+        applyBranding(DEFAULT_BRANDING);
+      });
+    }
 
     if (current.role !== 'SUPER_ADMIN' && current.tenantId) {
       api('/signature-subscription').then((subscription) => {
@@ -106,8 +122,14 @@ export function AppShell({ title, children }: { title: string; children: React.R
   }
 
   const navigation = <>
-    <div className="brand">Coffr<span>i</span>a</div>
-    <div className="seller">Une solution LMurbs</div>
+    {branding.isEnabled && branding.logoUrl
+      ? <div className="brandLogoWrap"><img className="brandLogo" src={branding.logoUrl} alt={branding.appName} /></div>
+      : branding.isEnabled
+        ? <div className="brand brandCustom">{branding.appName}</div>
+        : <div className="brand">Coffr<span>i</span>a</div>}
+    {branding.isEnabled
+      ? (branding.poweredByCoffria && <div className="seller">Propulsé par Coffria</div>)
+      : <div className="seller">Une solution LMurbs</div>}
     <nav className="nav">
       {links.map(({ href, label, icon: Icon }) => (
         <Link key={href} href={href} className={pathname === href || pathname.startsWith(`${href}/`) ? 'active' : ''}>
@@ -136,7 +158,7 @@ export function AppShell({ title, children }: { title: string; children: React.R
             <button type="button" className="mobileMenuButton" onClick={() => setMobileNavOpen(true)} aria-label="Ouvrir le menu" title="Menu"><Menu size={21}/></button>
             <strong>{title}</strong>
           </div>
-          <span className="muted topUserName">{user?.name || 'Utilisateur Coffria'}</span>
+          <span className="muted topUserName">{user?.name || `Utilisateur ${branding.appName}`}</span>
           <button type="button" className="mobileLogout" onClick={logout} aria-label="Se déconnecter" title="Déconnexion"><LogOut size={18}/></button>
         </header>
         {quotaReached && pathname.startsWith('/signatures') && <div className="alert error subscriptionAlert">Quota de signatures atteint : {user.signatureUsageUsed} / {user.signatureUsageLimit}. Contactez votre administrateur pour augmenter ou réinitialiser le quota.</div>}
