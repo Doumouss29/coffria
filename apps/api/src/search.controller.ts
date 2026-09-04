@@ -5,5 +5,5 @@ import { SearchService } from './search.service';
 @UseGuards(JwtGuard)
 export class SearchController {
   constructor(private s: SearchService) {}
-  @Get() run(@Req() req:any,@Query('q') q='',@Query('sort') sort='relevance'){return this.s.run(req.user,q,sort);}
+  @Get() run(@Req() req:any,@Query('q') q='',@Query('sort') sort='relevance',@Query('space') space='COMPANY'){return this.s.run(req.user,q,sort,space);}
 }
