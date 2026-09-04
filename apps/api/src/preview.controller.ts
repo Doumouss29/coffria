@@ -26,7 +26,7 @@ export class PreviewController {
         { visibility: 'COMPANY' },
         { createdById: req.user.sub },
         { userAccesses: { some: { userId: req.user.sub } } },
-        { groupAccesses: { some: { group: { members: { some: { userId: req.user.sub } } } } },
+        { groupAccesses: { some: { group: { members: { some: { userId: req.user.sub } } } } } },
       ],
     };
   }
