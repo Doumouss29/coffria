@@ -13,6 +13,7 @@ import './mobile-shell.css';
 import './signature-controls.css';
 import './desktop-readability.css';
 import './branding-admin.css';
+import './white-label-fixes.css';
 import AnalyticsTracker from '../components/AnalyticsTracker';
 import SignatureInteractionControls from '../components/SignatureInteractionControls';
 
