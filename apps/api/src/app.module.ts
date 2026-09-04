@@ -30,6 +30,7 @@ import { AiController } from './ai.controller';
 import { AnalyticsController } from './analytics.controller';
 import { StorageAllocationController } from './storage-allocation.controller';
 import { WorkspaceActionsController } from './workspace-actions.controller';
+import { TenantBrandingController } from './tenant-branding.controller';
 import { ArchiveAiService } from './archive-ai.service';
 import { DocumentConversionService } from './document-conversion.service';
 import { UploadCleanupService } from './upload-cleanup.service';
@@ -68,6 +69,7 @@ import { UploadCleanupService } from './upload-cleanup.service';
     AnalyticsController,
     StorageAllocationController,
     WorkspaceActionsController,
+    TenantBrandingController,
   ],
   providers: [
     PrismaService,
