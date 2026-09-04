@@ -1,11 +1,13 @@
 'use client';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '../../lib/api';
+import { applyBranding, Branding, DEFAULT_BRANDING, normalizeBranding } from '../../lib/branding';
 
 export default function LoginPage() {
   const router = useRouter();
+  const [branding, setBranding] = useState<Branding>(DEFAULT_BRANDING);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -20,9 +22,19 @@ export default function LoginPage() {
   const [pendingSession, setPendingSession] = useState<any>(null);
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
 
+  useEffect(() => {
+    const host = window.location.hostname;
+    api(`/tenant-branding/public/resolve?host=${encodeURIComponent(host)}`).then((value) => {
+      const next = normalizeBranding(value);
+      setBranding(next);
+      applyBranding(next);
+    }).catch(() => {
+      setBranding(DEFAULT_BRANDING);
+      applyBranding(DEFAULT_BRANDING);
+    });
+  }, []);
+
   function completeSession(d: any) {
-    // Le JWT et le jeton d'appareil de confiance sont désormais conservés
-    // uniquement dans des cookies HttpOnly créés par l'API.
     localStorage.removeItem('coffria_token');
     localStorage.removeItem('coffria_trusted_device');
     localStorage.setItem('coffria_user', JSON.stringify(d.user));
@@ -110,11 +122,18 @@ export default function LoginPage() {
     setStage('credentials'); setChallenge(null); setTotpSetup(null); setCode(''); setRecoveryCode(''); setError(''); setMessage('');
   }
 
+  const brandBlock = branding.isEnabled && branding.logoUrl
+    ? <div className="loginBrandLogoWrap"><img className="loginBrandLogo" src={branding.logoUrl} alt={branding.appName} /></div>
+    : branding.isEnabled
+      ? <div className="brand brandCustom loginBrandText">{branding.appName}</div>
+      : <div className="brand">Coffr<span>i</span>a</div>;
+
   return (
     <main className="login">
       <div className="loginCard mfaLoginCard">
-        <div className="brand">Coffr<span>i</span>a</div>
-        <div className="sub">Votre espace documentaire sécurisé et intelligent</div>
+        {brandBlock}
+        <div className="sub">{branding.isEnabled ? (branding.loginTitle || branding.loginSubtitle || 'Votre espace documentaire sécurisé') : 'Votre espace documentaire sécurisé et intelligent'}</div>
+        {branding.isEnabled && branding.loginSubtitle && branding.loginSubtitle !== branding.loginTitle && <div className="brandingLoginSubtitle">{branding.loginSubtitle}</div>}
 
         {stage === 'credentials' && <form onSubmit={submit}>
           <label className="field">Adresse email<input type="email" autoComplete="username" value={email} onChange={e => setEmail(e.target.value)} required /></label>
@@ -126,7 +145,7 @@ export default function LoginPage() {
         {stage === 'mfa' && <div className="mfaStep">
           <div className="mfaShield">🔐</div>
           <h2>Double authentification</h2>
-          <p>La double authentification est obligatoire sur Coffria. Choisissez votre méthode de vérification.</p>
+          <p>La double authentification est obligatoire sur {branding.appName}. Choisissez votre méthode de vérification.</p>
           <div className="mfaMethodGrid">
             {challenge?.allowedMethods?.includes('TOTP') && <button className="mfaMethod" onClick={chooseTotp} disabled={busy}><b>Application Authenticator</b><span>Google Authenticator, Microsoft Authenticator, Authy…</span></button>}
             {challenge?.allowedMethods?.includes('EMAIL') && <button className="mfaMethod" onClick={sendEmailCode} disabled={busy}><b>Code par email</b><span>Recevoir un code à 6 chiffres sur {challenge.emailHint}</span></button>}
@@ -139,7 +158,7 @@ export default function LoginPage() {
         {stage === 'totpSetup' && <form className="mfaStep" onSubmit={verifyTotp}>
           <h2>Configurer Authenticator</h2>
           <p>Scannez ce QR code avec Google Authenticator, Microsoft Authenticator ou une application compatible.</p>
-          <img className="mfaQr" src={totpSetup?.qrDataUrl} alt="QR code Authenticator Coffria" />
+          <img className="mfaQr" src={totpSetup?.qrDataUrl} alt={`QR code Authenticator ${branding.appName}`} />
           <div className="mfaSecret"><span>Clé manuelle</span><code>{totpSetup?.secret}</code></div>
           <label className="field">Code à 6 chiffres<input inputMode="numeric" autoComplete="one-time-code" maxLength={8} value={code} onChange={e=>setCode(e.target.value.replace(/\D/g,''))} required /></label>
           <label className="mfaRemember"><input type="checkbox" checked={rememberDevice} onChange={e=>setRememberDevice(e.target.checked)}/> Faire confiance à cet appareil pendant 30 jours</label>
@@ -185,8 +204,10 @@ export default function LoginPage() {
           <button className="primary full" onClick={()=>completeSession(pendingSession)}>J’ai enregistré mes codes — continuer</button>
         </div>}
 
-        <div className="powered">Solution éditée par <strong>LMurbs</strong></div>
-        <div className="loginBack"><Link href="/">← Retour au site Coffria</Link></div>
+        {branding.isEnabled
+          ? (branding.poweredByCoffria && <div className="powered">Propulsé par <strong>Coffria</strong></div>)
+          : <div className="powered">Solution éditée par <strong>LMurbs</strong></div>}
+        <div className="loginBack"><Link href="/">← Retour au site {branding.isEnabled ? branding.appName : 'Coffria'}</Link></div>
       </div>
     </main>
   );
