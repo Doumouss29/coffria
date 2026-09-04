@@ -181,7 +181,7 @@ export class BulkController {
     const docs = await this.db.document.findMany({ where: { tenantId, deletedAt: { not: null }, OR: [{ id: { in: documentIds } }, { folderId: { in: folderTree } }] }, select: { id: true, storageKey: true } });
     for (const doc of docs) await this.storage.deletePrefixPermanently(doc.storageKey).catch(() => this.storage.delete(doc.storageKey).catch(() => undefined));
     await this.db.$transaction(async (tx) => {
-      if (docs.length) await tx.document.deleteMany({ where: { id: { in: docs.map((d) => d.id) } });
+      if (docs.length) await tx.document.deleteMany({ where: { id: { in: docs.map((d) => d.id) } } });
       for (const id of [...folderTree].reverse()) await tx.folder.deleteMany({ where: { id, tenantId, deletedAt: { not: null } } });
     });
     return { success: true, purgedDocuments: docs.length, purgedFolders: folderTree.length };
