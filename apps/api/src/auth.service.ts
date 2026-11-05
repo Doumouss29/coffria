@@ -411,6 +411,123 @@ export class AuthService {
     return { success: true, message: 'Tous les appareils de confiance ont été révoqués.' };
   }
 
+
+  private publicBaseUrl() {
+    const configured = String(process.env.APP_URL || 'https://coffria.ci').split(',')[0].trim().replace(/\/$/, '');
+    return /^https?:\/\//i.test(configured) ? configured : `https://${configured}`;
+  }
+
+  private async accountLinkContext(userId: string) {
+    const user = await this.db.user.findUnique({
+      where: { id: userId },
+      include: { tenant: { include: { branding: true } } },
+    });
+    if (!user) throw new BadRequestException('Compte introuvable');
+    const branding = user.tenant?.branding;
+    const appName = branding?.isEnabled && branding.appName ? branding.appName : 'Coffria';
+    const baseUrl = branding?.isEnabled && branding.customDomain
+      ? `https://${branding.customDomain}`
+      : this.publicBaseUrl();
+    return { user, appName, baseUrl };
+  }
+
+  private async sendAccountLinkEmail(userId: string, purpose: 'ACCOUNT_INVITE' | 'PASSWORD_RESET') {
+    const { user, appName, baseUrl } = await this.accountLinkContext(userId);
+    const stamp = this.sha256(user.passwordHash);
+    const expiresIn = purpose === 'ACCOUNT_INVITE' ? '48h' : '30m';
+    const token = await this.jwt.signAsync({ sub: user.id, purpose, stamp }, { expiresIn });
+    const url = `${baseUrl}/nouveau-mot-de-passe?token=${encodeURIComponent(token)}`;
+
+    const host = process.env.BREVO_SMTP_HOST || 'smtp-relay.brevo.com';
+    const port = Number(process.env.BREVO_SMTP_PORT || 587);
+    const smtpUser = process.env.BREVO_SMTP_LOGIN;
+    const pass = process.env.BREVO_SMTP_KEY;
+    const fromEmail = process.env.AUTH_FROM_EMAIL || process.env.CONTACT_FROM_EMAIL || 'contact.lmurbs@gmail.com';
+    const fromName = process.env.AUTH_FROM_NAME || `${appName} Sécurité`;
+    if (!smtpUser || !pass) throw new BadGatewayException('Le service email de sécurité Coffria n’est pas configuré.');
+
+    const transporter = nodemailer.createTransport({ host, port, secure: port === 465, auth: { user: smtpUser, pass } });
+    const invite = purpose === 'ACCOUNT_INVITE';
+    const title = invite ? `Bienvenue sur ${appName}` : `Réinitialisation de votre mot de passe ${appName}`;
+    const action = invite ? 'Créer mon mot de passe' : 'Choisir un nouveau mot de passe';
+    const intro = invite
+      ? `Un compte administrateur a été créé pour vous sur ${appName}. Créez votre mot de passe pour activer votre accès.`
+      : `Une demande de réinitialisation du mot de passe de votre compte ${appName} a été reçue.`;
+    const validity = invite ? '48 heures' : '30 minutes';
+
+    try {
+      await transporter.sendMail({
+        from: { name: fromName, address: fromEmail },
+        to: user.email,
+        subject: title,
+        text: `${intro}\n\n${action} : ${url}\n\nCe lien expire dans ${validity}. Si vous n’êtes pas à l’origine de cette demande, ignorez cet email.`,
+        html: `<div style="font-family:Arial,sans-serif;max-width:580px;margin:auto;color:#14213d"><h2>${title}</h2><p>Bonjour ${user.name},</p><p>${intro}</p><p style="margin:28px 0"><a href="${url}" style="display:inline-block;background:#c97a3d;color:#fff;text-decoration:none;font-weight:700;padding:13px 20px;border-radius:9px">${action}</a></p><p>Ce lien expire dans <strong>${validity}</strong>.</p><p style="color:#687386;font-size:13px">Si vous n’êtes pas à l’origine de cette demande, vous pouvez ignorer cet email.</p></div>`,
+      });
+    } catch (error) {
+      console.error('Coffria account email error', error);
+      throw new BadGatewayException('Impossible d’envoyer l’email pour le moment.');
+    }
+    return { success: true };
+  }
+
+  async sendAccountInvitation(userId: string) {
+    const user = await this.db.user.findUnique({ where: { id: userId }, select: { id: true, status: true } });
+    if (!user) throw new BadRequestException('Compte introuvable');
+    if (user.status !== 'INVITED') throw new BadRequestException('Ce compte est déjà activé.');
+    await this.sendAccountLinkEmail(userId, 'ACCOUNT_INVITE');
+    return { success: true, message: 'Invitation envoyée.' };
+  }
+
+  async forgotPassword(email: string) {
+    const user = await this.getLoginUser(email);
+    if (user && ['ACTIVE', 'INVITED'].includes(user.status)) {
+      try {
+        this.assertTenantAccess(user);
+        await this.sendAccountLinkEmail(user.id, user.status === 'INVITED' ? 'ACCOUNT_INVITE' : 'PASSWORD_RESET');
+      } catch (error) {
+        if (error instanceof BadGatewayException) throw error;
+      }
+    }
+    return { success: true, message: 'Si un compte correspond à cette adresse, un email vient d’être envoyé.' };
+  }
+
+  async setPasswordFromToken(token: string, newPassword: string) {
+    let payload: any;
+    try {
+      payload = await this.jwt.verifyAsync(token);
+    } catch {
+      throw new UnauthorizedException('Ce lien est invalide ou a expiré.');
+    }
+    if (!['ACCOUNT_INVITE', 'PASSWORD_RESET'].includes(payload?.purpose) || !payload?.sub || !payload?.stamp) {
+      throw new UnauthorizedException('Ce lien est invalide ou a expiré.');
+    }
+    const user = await this.db.user.findUnique({ where: { id: payload.sub }, include: { tenant: true } });
+    if (!user || this.sha256(user.passwordHash) !== payload.stamp) {
+      throw new UnauthorizedException('Ce lien a déjà été utilisé ou n’est plus valide.');
+    }
+    if (payload.purpose === 'ACCOUNT_INVITE' && user.status !== 'INVITED') {
+      throw new UnauthorizedException('Cette invitation a déjà été utilisée.');
+    }
+    if (payload.purpose === 'PASSWORD_RESET' && user.status !== 'ACTIVE') {
+      throw new UnauthorizedException('Ce compte ne peut pas être réinitialisé avec ce lien.');
+    }
+    this.assertTenantAccess(user);
+    await this.db.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash: await bcrypt.hash(newPassword, 12),
+        ...(payload.purpose === 'ACCOUNT_INVITE' ? { status: 'ACTIVE' as const } : {}),
+      },
+    });
+    await this.db.trustedDevice.deleteMany({ where: { userId: user.id } });
+    return {
+      success: true,
+      message: payload.purpose === 'ACCOUNT_INVITE'
+        ? 'Votre mot de passe a été créé. Vous pouvez maintenant vous connecter.'
+        : 'Votre mot de passe a été réinitialisé. Vous pouvez maintenant vous connecter.',
+    };
+  }
+
   async changePassword(userId: string, currentPassword: string, newPassword: string) {
     const user = await this.db.user.findUniqueOrThrow({ where: { id: userId } });
     if (!(await bcrypt.compare(currentPassword, user.passwordHash))) {
