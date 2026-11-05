@@ -71,3 +71,62 @@
   .responsiveFormModal .formGridScrollable,.responsiveFormModal .modalActions,.brandingModeChoice{min-width:580px}
   .brandingModeCard{min-width:270px}
 }
+
+
+/* Auth/MFA : empêcher tout débordement horizontal des champs */
+.loginCard,
+.mfaLoginCard,
+.mfaStep,
+.loginCard form{
+  min-width:0;
+  max-width:100%;
+}
+.loginCard{
+  overflow-x:hidden;
+}
+.loginCard .field,
+.mfaStep .field{
+  min-width:0;
+  width:100%;
+}
+.loginCard input,
+.loginCard select,
+.loginCard textarea,
+.loginCard button,
+.loginCard .alert,
+.mfaStep input,
+.mfaStep select,
+.mfaStep textarea,
+.mfaStep button{
+  box-sizing:border-box;
+  max-width:100%;
+}
+.loginCard .field input,
+.loginCard .field select,
+.loginCard .field textarea,
+.mfaStep .field input,
+.mfaStep .field select,
+.mfaStep .field textarea,
+.mfaCodeInput{
+  width:100%;
+  min-width:0;
+}
+.loginCard .alert{
+  width:100%;
+  min-width:0;
+  overflow-wrap:anywhere;
+}
+.mfaMethodGrid,
+.securityFacts,
+.securityActions{
+  min-width:0;
+}
+@media(max-width:600px){
+  .loginCard{
+    width:calc(100vw - 24px);
+    padding:24px 18px;
+  }
+  .mfaLoginCard{
+    width:calc(100vw - 24px);
+  }
+}
