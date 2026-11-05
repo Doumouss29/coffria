@@ -12,6 +12,11 @@ class ChangePasswordDto {
   @IsString() currentPassword!: string;
   @IsString() @MinLength(10) newPassword!: string;
 }
+class ForgotPasswordDto { @IsEmail() email!: string; }
+class SetPasswordDto {
+  @IsString() token!: string;
+  @IsString() @MinLength(10) newPassword!: string;
+}
 class ChallengeDto { @IsString() challengeToken!: string; }
 class EmailVerifyDto extends ChallengeDto {
   @IsString() @Length(6, 6) code!: string;
@@ -61,6 +66,16 @@ export class AuthController {
     }
     const { accessToken, trustedDeviceToken, ...safe } = result;
     return { ...safe, authenticated: true };
+  }
+
+  @Post('forgot-password')
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.auth.forgotPassword(dto.email);
+  }
+
+  @Post('set-password')
+  setPassword(@Body() dto: SetPasswordDto) {
+    return this.auth.setPasswordFromToken(dto.token, dto.newPassword);
   }
 
   @Post('login')
