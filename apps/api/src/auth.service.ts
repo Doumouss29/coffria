@@ -434,7 +434,7 @@ export class AuthService {
   private async sendAccountLinkEmail(userId: string, purpose: 'ACCOUNT_INVITE' | 'PASSWORD_RESET') {
     const { user, appName, baseUrl } = await this.accountLinkContext(userId);
     const stamp = this.sha256(user.passwordHash);
-    const expiresIn = purpose === 'ACCOUNT_INVITE' ? '48h' : '30m';
+    const expiresIn: any = purpose === 'ACCOUNT_INVITE' ? '48h' : '30m';
     const token = await this.jwt.signAsync({ sub: user.id, purpose, stamp }, { expiresIn });
     const url = `${baseUrl}/nouveau-mot-de-passe?token=${encodeURIComponent(token)}`;
 
