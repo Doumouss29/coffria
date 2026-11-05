@@ -138,6 +138,7 @@ export default function LoginPage() {
         {stage === 'credentials' && <form onSubmit={submit}>
           <label className="field">Adresse email<input type="email" autoComplete="username" value={email} onChange={e => setEmail(e.target.value)} required /></label>
           <label className="field">Mot de passe<input type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required /></label>
+          <div className="loginHelp"><Link href="/mot-de-passe-oublie">Mot de passe oublié ?</Link></div>
           {error && <p className="loginError">{error}</p>}
           <button className="primary full" disabled={busy}>{busy ? 'Connexion…' : 'Continuer'}</button>
         </form>}
