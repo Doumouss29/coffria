@@ -40,15 +40,15 @@ function offerDetailHref(offer:any) {
   if (offer?.ctaUrl?.startsWith('/souscription')) return offer.ctaUrl;
   return offer?.id && offer.id !== 'fallback' ? `/offres/${offer.id}` : '/offres';
 }
-function planSlug(p:any){return String(p?.slug||p?.name||'').toLowerCase()}
 function normalizePublicPlans(items:any[]){
-  const pro=items.find((p:any)=>planSlug(p)==='pro');
-  const corporate=items.find((p:any)=>planSlug(p)==='corporate');
-  return [
-    pro?{...pro,name:'PRO',priceLabel:'40 000 FCFA HT / mois',storageGb:500,features:['500 Go de stockage','Signature électronique sécurisée','Gestion avancée des droits'],isHighlighted:false,badge:null}:fallbackPlans[0],
-    corporate?{...corporate,name:'CORPORATE',priceLabel:'60 000 FCFA HT / mois',storageGb:1000,features:['1 To de stockage','Multi-signataires et workflows','Support dédié'],isHighlighted:true,badge:'Bestseller'}:fallbackPlans[1],
-    fallbackPlans[2],
-  ];
+  return (items||[])
+    .filter((p:any)=>p?.isActive!==false)
+    .sort((a:any,b:any)=>Number(a?.sortOrder||0)-Number(b?.sortOrder||0));
+}
+function planPriceLabel(plan:any){
+  if (plan?.priceLabel && plan.priceLabel !== 'Sur devis') return plan.priceLabel;
+  if (plan?.monthlyPriceCents != null) return `${Math.round(Number(plan.monthlyPriceCents)/100).toLocaleString('fr-FR')} FCFA HT / mois`;
+  return 'Sur devis';
 }
 
 export default function HomePage() {
@@ -146,7 +146,7 @@ export default function HomePage() {
       <section className="section">
         <div className="publicContainer">
           <div className="sectionHead"><div><span className="eyebrow">Formules</span><h2>Choisissez votre niveau d’accompagnement</h2></div><Link href="/souscription" className="textLink">Voir tous les tarifs →</Link></div>
-          <div className="pricingGrid compactPricing">{displayPlans.map((plan:any)=><article key={plan.id || plan.name} className={`priceCard ${plan.isHighlighted?'featured':''}`}>{plan.badge&&<span className="planBadge">{plan.badge}</span>}<div className="priceName">{plan.name}</div><p>{plan.subtitle}</p><div className="priceAmount">{plan.priceLabel || 'Sur devis'}</div><ul className="priceList">{(Array.isArray(plan.features)?plan.features:[]).slice(0,3).map((f:string)=><li key={f}>{f}</li>)}</ul><Link href={`/souscription?plan=${encodeURIComponent(plan.slug||plan.name)}`} className={plan.isHighlighted?'publicPrimary':'publicSecondary'}>Choisir cette offre</Link></article>)}</div>
+          <div className="pricingGrid compactPricing">{displayPlans.map((plan:any)=><article key={plan.id || plan.name} className={`priceCard ${plan.isHighlighted?'featured':''}`}>{plan.badge&&<span className="planBadge">{plan.badge}</span>}<div className="priceName">{plan.name}</div><p>{plan.subtitle}</p><div className="priceAmount">{planPriceLabel(plan)}</div><ul className="priceList">{(Array.isArray(plan.features)?plan.features:[]).slice(0,3).map((f:string)=><li key={f}>{f}</li>)}</ul><Link href={`/souscription?plan=${encodeURIComponent(plan.slug||plan.name)}`} className={plan.isHighlighted?'publicPrimary':'publicSecondary'}>Choisir cette offre</Link></article>)}</div>
         </div>
       </section>
 
