@@ -82,7 +82,7 @@ function storageLabel(gb:number){return gb%1000===0?`${gb/1000} To`:`${(gb/1000)
 
 return <>
 <section className="section">
-  <div className="publicContainer">
+  <div className="publicContainer pricingPublicContainer">
     <div className="subscriptionSteps">
       <span className="active">1. Pack</span><span>2. Périodicité</span><span>3. Conditions</span><span>4. Souscription</span>
     </div>
