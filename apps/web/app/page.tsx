@@ -11,7 +11,7 @@ const fallbackOffer = {
   id: 'fallback',
   title: 'Pack SUR MESURE — à partir de 1,5 To',
   subtitle: 'Offre du moment',
-  description: 'À partir de 1,5 To de stockage à 80 000 FCFA HT par mois, puis +20 000 FCFA HT par palier supplémentaire de 500 Go.',
+  description: 'À partir de 1,5 To de stockage à 90 000 FCFA HT par mois, puis +20 000 FCFA HT par palier supplémentaire de 500 Go.',
   ctaLabel: 'Choisir le Pack SUR MESURE',
   ctaUrl: '/souscription?plan=sur-mesure',
   placement: 'BOTH',
@@ -19,20 +19,18 @@ const fallbackOffer = {
 
 const fallbackPlans = [
   { id:'p', slug:'pro', name:'PRO', subtitle:'Pour les équipes qui collaborent au quotidien', priceLabel:'70 000 FCFA HT / mois', features:['500 Go de stockage','Signature électronique sécurisée','Gestion avancée des droits'], isHighlighted:false },
-  { id:'s', slug:'sur-mesure', name:'SUR MESURE', subtitle:'Au-delà de 1 To, capacité évolutive par paliers de 500 Go', priceLabel:'À partir de 80 000 FCFA HT / mois', features:['1,5 To de stockage minimum','Paliers de +500 Go à 20 000 FCFA','Multi-signataires, API et support dédié'], isHighlighted:true, badge:'Flexible' },
+  { id:'s', slug:'sur-mesure', name:'SUR MESURE', subtitle:'Au-delà de 1 To, capacité évolutive par paliers de 500 Go', priceLabel:'À partir de 90 000 FCFA HT / mois', features:['1,5 To de stockage minimum','Paliers de +500 Go à 20 000 FCFA','Multi-signataires, API et support dédié'], isHighlighted:true, badge:'Flexible' },
 ];
 
-function normalizeOffer(offer:any) {
-  const text = `${offer?.title||''} ${offer?.subtitle||''} ${offer?.description||''} ${offer?.ctaLabel||''}`.toUpperCase();
-  if (!text.includes('ESSENTIEL')) return offer;
-  return {
-    ...offer,
-    title: 'Pack SUR MESURE — à partir de 1,5 To',
-    subtitle: 'Offre du moment',
-    description: 'À partir de 1,5 To de stockage documentaire sécurisé à 80 000 FCFA HT par mois, puis +20 000 FCFA HT par palier supplémentaire de 500 Go.',
-    ctaLabel: 'Choisir le Pack SUR MESURE',
-    ctaUrl: '/souscription?plan=sur-mesure',
-  };
+function normalizeOffer(offer:any, plan:any) {
+  const price=plan?.monthlyPriceCents!=null?Math.round(Number(plan.monthlyPriceCents)/100):90000;
+  const priceLabel=price.toLocaleString('fr-FR');
+  const fallback=`À partir de 1,5 To de stockage documentaire sécurisé à ${priceLabel} FCFA HT par mois, puis +20 000 FCFA HT par palier supplémentaire de 500 Go.`;
+  const source=String(offer?.description||fallback);
+  const description=source.match(/\d[\d\s.]*FCFA HT par mois/i)
+    ? source.replace(/\d[\d\s.]*FCFA HT par mois/i,`${priceLabel} FCFA HT par mois`)
+    : source;
+  return {...offer,description};
 }
 
 function offerDetailHref(offer:any) {
@@ -55,7 +53,12 @@ export default function HomePage() {
 
   useEffect(() => {
     Promise.all([api('/marketing/public/offers'), api('/marketing/public/plans')])
-      .then(([o,p]) => { setOffers((o||[]).map(normalizeOffer)); setPlans(normalizePublicPlans(p||[])); })
+      .then(([o,p]) => {
+        const normalizedPlans=normalizePublicPlans(p||[]);
+        const surMesure=normalizedPlans.find((plan:any)=>String(plan?.slug||'').toLowerCase()==='sur-mesure');
+        setOffers((o||[]).map((offer:any)=>normalizeOffer(offer,surMesure)));
+        setPlans(normalizedPlans);
+      })
       .catch(() => { setPlans(fallbackPlans); });
   }, []);
 
