@@ -19,7 +19,7 @@ export default function MarketingPage() {
   useEffect(()=>{load().catch(e=>setError(e.message))},[]);
   function resetMessages(){setError('');setNotice('')}
 
-  async function saveOffer(e:React.FormEvent){e.preventDefault();resetMessages();try{const body={...offerForm,startAt:offerForm.startAt||undefined,endAt:offerForm.endAt||undefined,sortOrder:Number(offerForm.sortOrder||0)};await api(editingOffer?`/marketing/offers/${editingOffer.id}`:'/marketing/offers',{method:editingOffer?'PATCH':'POST',body:JSON.stringify(body)});setNotice(editingOffer?'Offre mise à jour.':'Offre créée.');setOfferForm(emptyOffer);setEditingOffer(null);await load()}catch(e:any){setError(e.message)}}
+  async function saveOffer(e:React.FormEvent){e.preventDefault();resetMessages();try{const body={title:String(offerForm.title||''),subtitle:offerForm.subtitle||undefined,description:String(offerForm.description||''),ctaLabel:offerForm.ctaLabel||undefined,ctaUrl:offerForm.ctaUrl||undefined,placement:offerForm.placement||'BOTH',startAt:offerForm.startAt||undefined,endAt:offerForm.endAt||undefined,isActive:Boolean(offerForm.isActive),sortOrder:Number(offerForm.sortOrder||0)};await api(editingOffer?`/marketing/offers/${editingOffer.id}`:'/marketing/offers',{method:editingOffer?'PATCH':'POST',body:JSON.stringify(body)});setNotice(editingOffer?'Offre mise à jour.':'Offre créée.');setOfferForm(emptyOffer);setEditingOffer(null);await load()}catch(e:any){setError(e.message)}}
   function editOffer(item:any){setEditingOffer(item);setOfferForm({...item,startAt:item.startAt?String(item.startAt).slice(0,10):'',endAt:item.endAt?String(item.endAt).slice(0,10):''});window.scrollTo({top:0,behavior:'smooth'})}
   async function deleteOffer(item:any){if(!confirm(`Supprimer l'offre « ${item.title} » ?`))return;try{await api(`/marketing/offers/${item.id}`,{method:'DELETE'});setNotice('Offre supprimée.');await load()}catch(e:any){setError(e.message)}}
 
@@ -28,7 +28,7 @@ export default function MarketingPage() {
   async function deletePlan(item:any){if(!confirm(`Supprimer la formule « ${item.name} » ?`))return;try{await api(`/marketing/plans/${item.id}`,{method:'DELETE'});setNotice('Formule supprimée.');await load()}catch(e:any){setError(e.message)}}
 
   return <AppShell title="Vitrine & Marketing"><section className="content marketingAdmin">
-    <div className="pageTitle"><div><h1>Vitrine & Marketing</h1><p className="muted">Pilotez les offres du moment et les trois packs affichés sur la page Tarifs.</p></div><Megaphone size={28}/></div>
+    <div className="pageTitle"><div><h1>Vitrine & Marketing</h1><p className="muted">Pilotez les offres du moment et les deux packs affichés sur la page Tarifs.</p></div><Megaphone size={28}/></div>
     {error&&<div className="alert error">{error}</div>}{notice&&<div className="alert success">{notice}</div>}
     <div className="adminTabs"><button className={tab==='offers'?'active':''} onClick={()=>setTab('offers')}>Offres du moment</button><button className={tab==='plans'?'active':''} onClick={()=>setTab('plans')}>Tarifs</button></div>
 
