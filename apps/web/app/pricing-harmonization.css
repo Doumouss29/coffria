@@ -247,3 +247,49 @@
   .featuredOfferMain>p{font-size:16px}
   .featuredAnnualDeal{width:100%;align-items:flex-start}
 }
+
+
+/* Ajustement desktop : plus d'espace pour SUR MESURE et le comparatif */
+.pricingPublicContainer{
+  width:min(1380px,calc(100% - 24px));
+}
+.pricingWorkspace{
+  grid-template-columns:minmax(0,1.9fr) minmax(330px,.82fr);
+  gap:16px;
+}
+.pricingOffersColumn{
+  grid-template-columns:minmax(0,.86fr) minmax(0,1.14fr);
+  gap:14px;
+}
+.pricingOffersColumn .subscriptionPriceCard{
+  padding-left:18px;
+  padding-right:18px;
+}
+.pricingOffersColumn .subscriptionPriceCard.featured{
+  padding-left:20px;
+  padding-right:20px;
+}
+.pricingOffersColumn .subscriptionPriceCard.featured .priceAmountInline{
+  gap:14px!important;
+}
+.pricingOffersColumn .subscriptionPriceCard.featured .priceAmountInline>span{
+  font-size:22px!important;
+}
+.pricingOffersColumn .subscriptionPriceCard.featured .priceAmountInline>.pricePeriod{
+  font-size:13px!important;
+  transform:translateY(-1px);
+}
+.pricingOffersColumn .subscriptionPriceCard.featured .pricingStorageMeta{
+  white-space:nowrap;
+  font-size:17px!important;
+  letter-spacing:-.15px;
+}
+.pricingOffersColumn .subscriptionPriceCard.featured .pricingStorageMeta .nowrap{
+  white-space:nowrap;
+}
+@media(max-width:1180px){
+  .pricingPublicContainer{width:min(100% - 24px,1180px)}
+  .pricingWorkspace{grid-template-columns:1fr}
+  .pricingOffersColumn{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .pricingOffersColumn .subscriptionPriceCard.featured .pricingStorageMeta{white-space:normal}
+}
