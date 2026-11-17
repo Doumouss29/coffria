@@ -293,3 +293,30 @@
   .pricingOffersColumn{grid-template-columns:repeat(2,minmax(0,1fr))}
   .pricingOffersColumn .subscriptionPriceCard.featured .pricingStorageMeta{white-space:normal}
 }
+
+
+/* Compacter la carte SUR MESURE et afficher une vraie liste d'avantages */
+.pricingOffersColumn .subscriptionPriceCard.featured{
+  min-height:auto!important;
+}
+.pricingOffersColumn .subscriptionPriceCard.featured>p{
+  margin-bottom:8px;
+}
+.pricingOffersColumn .subscriptionPriceCard.featured .annualOfferBadge{
+  margin-top:10px;
+}
+.surMesureHighlights{
+  margin:12px 0 14px!important;
+  gap:8px!important;
+}
+.surMesureHighlights li{
+  font-size:14px;
+  line-height:1.35;
+}
+.pricingOffersColumn .subscriptionPriceCard{
+  gap:8px;
+}
+.pricingOffersColumn .subscriptionPriceCard .publicPrimary,
+.pricingOffersColumn .subscriptionPriceCard .publicSecondary{
+  margin-top:10px!important;
+}
