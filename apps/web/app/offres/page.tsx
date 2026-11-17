@@ -11,7 +11,7 @@ const fallbackOffers=[{
   id:'sur-mesure',
   title:'Pack SUR MESURE — à partir de 1,5 To',
   subtitle:'Offre du moment',
-  description:'À partir de 1,5 To de stockage documentaire sécurisé à 80 000 FCFA HT par mois, puis +20 000 FCFA HT par palier supplémentaire de 500 Go.',
+  description:'À partir de 1,5 To de stockage documentaire sécurisé à 90 000 FCFA HT par mois, puis +20 000 FCFA HT par palier supplémentaire de 500 Go.',
   ctaLabel:'Choisir le Pack SUR MESURE',
   ctaUrl:'/souscription?plan=sur-mesure',
   startAt:null,
@@ -31,20 +31,29 @@ function formatDate(value?:string|null){
   return new Intl.DateTimeFormat('fr-FR',{day:'2-digit',month:'long',year:'numeric'}).format(new Date(value))
 }
 
-function normalizeOffer(offer:any){
+function monthlyPriceFcfa(plan:any){
+  return plan?.monthlyPriceCents!=null?Math.round(Number(plan.monthlyPriceCents)/100):90000;
+}
+function normalizeOffer(offer:any,plan:any){
+  const price=monthlyPriceFcfa(plan).toLocaleString('fr-FR');
+  const fallback=`À partir de 1,5 To de stockage documentaire sécurisé à ${price} FCFA HT par mois, puis +20 000 FCFA HT par palier supplémentaire de 500 Go.`;
+  const source=String(offer?.description||fallback);
+  const description=source.match(/\d[\d\s.]*FCFA HT par mois/i)
+    ? source.replace(/\d[\d\s.]*FCFA HT par mois/i,`${price} FCFA HT par mois`)
+    : source;
   return {
     ...offer,
-    title:'Pack SUR MESURE — à partir de 1,5 To',
-    subtitle:'Offre du moment',
-    description:'À partir de 1,5 To de stockage documentaire sécurisé à 80 000 FCFA HT par mois, puis +20 000 FCFA HT par palier supplémentaire de 500 Go.',
-    ctaLabel:'Choisir le Pack SUR MESURE',
-    ctaUrl:'/souscription?plan=sur-mesure'
+    title:offer?.title||'Pack SUR MESURE — à partir de 1,5 To',
+    subtitle:offer?.subtitle||'Offre du moment',
+    description,
+    ctaLabel:offer?.ctaLabel||'Choisir le Pack SUR MESURE',
+    ctaUrl:offer?.ctaUrl||'/souscription?plan=sur-mesure'
   };
 }
 
 export default function OffersPage(){
   const[offers,setOffers]=useState<any[]>([]);
-  useEffect(()=>{api('/marketing/public/offers').then((items:any[])=>setOffers((items||[]).map(normalizeOffer))).catch(()=>{})},[]);
+  useEffect(()=>{Promise.all([api('/marketing/public/offers'),api('/marketing/public/plans')]).then(([items,plans]:any[])=>{const surMesure=(plans||[]).find((p:any)=>String(p?.slug||'').toLowerCase()==='sur-mesure');setOffers((items||[]).map((offer:any)=>normalizeOffer(offer,surMesure)))}).catch(()=>{})},[]);
   const displayOffers=offers.length?offers:fallbackOffers;
 
   return <main className="publicPage offersPage">
