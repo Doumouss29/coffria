@@ -382,3 +382,16 @@
     height:auto!important;
   }
 }
+
+
+/* Centrer les informations clés des cartes tarifaires */
+.pricingOffersColumn .subscriptionPriceCard .pricingStorageMeta{
+  text-align:center!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+}
+.pricingOffersColumn .subscriptionPriceCard .annualOfferBadge{
+  justify-content:center!important;
+  text-align:center!important;
+}
