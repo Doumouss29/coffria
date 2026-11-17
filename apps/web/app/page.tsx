@@ -46,9 +46,8 @@ function normalizePublicPlans(items:any[]){
     .sort((a:any,b:any)=>Number(a?.sortOrder||0)-Number(b?.sortOrder||0));
 }
 function planPriceLabel(plan:any){
-  if (plan?.priceLabel && plan.priceLabel !== 'Sur devis') return plan.priceLabel;
   if (plan?.monthlyPriceCents != null) return `${Math.round(Number(plan.monthlyPriceCents)/100).toLocaleString('fr-FR')} FCFA HT / mois`;
-  return 'Sur devis';
+  return plan?.priceLabel || 'Sur devis';
 }
 
 export default function HomePage() {
