@@ -9,17 +9,17 @@ import { api } from '../lib/api';
 
 const fallbackOffer = {
   id: 'fallback',
-  title: 'Pack CORPORATE — à partir de 1,5 To',
+  title: 'Pack SUR MESURE — à partir de 1,5 To',
   subtitle: 'Offre du moment',
   description: 'À partir de 1,5 To de stockage à 80 000 FCFA HT par mois, puis +20 000 FCFA HT par palier supplémentaire de 500 Go.',
-  ctaLabel: 'Choisir le Pack CORPORATE',
-  ctaUrl: '/souscription?plan=corporate',
+  ctaLabel: 'Choisir le Pack SUR MESURE',
+  ctaUrl: '/souscription?plan=sur-mesure',
   placement: 'BOTH',
 };
 
 const fallbackPlans = [
-  { id:'p', slug:'pro', name:'PRO', subtitle:'Pour les équipes qui collaborent au quotidien', priceLabel:'40 000 FCFA HT / mois', features:['500 Go de stockage','Signature électronique sécurisée','Gestion avancée des droits'], isHighlighted:false },
-  { id:'c', slug:'corporate', name:'CORPORATE', subtitle:'Au-delà de 1 To, capacité évolutive par paliers de 500 Go', priceLabel:'À partir de 80 000 FCFA HT / mois', features:['1,5 To de stockage minimum','Paliers de +500 Go à 20 000 FCFA','Multi-signataires, API et support dédié'], isHighlighted:true, badge:'Flexible' },
+  { id:'p', slug:'pro', name:'PRO', subtitle:'Pour les équipes qui collaborent au quotidien', priceLabel:'70 000 FCFA HT / mois', features:['500 Go de stockage','Signature électronique sécurisée','Gestion avancée des droits'], isHighlighted:false },
+  { id:'s', slug:'sur-mesure', name:'SUR MESURE', subtitle:'Au-delà de 1 To, capacité évolutive par paliers de 500 Go', priceLabel:'À partir de 80 000 FCFA HT / mois', features:['1,5 To de stockage minimum','Paliers de +500 Go à 20 000 FCFA','Multi-signataires, API et support dédié'], isHighlighted:true, badge:'Flexible' },
 ];
 
 function normalizeOffer(offer:any) {
@@ -27,11 +27,11 @@ function normalizeOffer(offer:any) {
   if (!text.includes('ESSENTIEL')) return offer;
   return {
     ...offer,
-    title: 'Pack CORPORATE — à partir de 1,5 To',
+    title: 'Pack SUR MESURE — à partir de 1,5 To',
     subtitle: 'Offre du moment',
     description: 'À partir de 1,5 To de stockage documentaire sécurisé à 80 000 FCFA HT par mois, puis +20 000 FCFA HT par palier supplémentaire de 500 Go.',
-    ctaLabel: 'Choisir le Pack CORPORATE',
-    ctaUrl: '/souscription?plan=corporate',
+    ctaLabel: 'Choisir le Pack SUR MESURE',
+    ctaUrl: '/souscription?plan=sur-mesure',
   };
 }
 
