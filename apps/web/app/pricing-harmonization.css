@@ -320,3 +320,65 @@
 .pricingOffersColumn .subscriptionPriceCard .publicSecondary{
   margin-top:10px!important;
 }
+
+
+/* Harmonisation finale : PRO et SUR MESURE ont exactement le même gabarit */
+.pricingOffersColumn{
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  align-items:stretch!important;
+}
+.pricingOffersColumn .subscriptionPriceCard,
+.pricingOffersColumn .subscriptionPriceCard.featured{
+  height:100%!important;
+  min-height:0!important;
+  padding-left:18px!important;
+  padding-right:18px!important;
+}
+.pricingOffersColumn .subscriptionPriceCard .priceName{
+  font-size:20px!important;
+  line-height:1.1!important;
+}
+.pricingOffersColumn .subscriptionPriceCard>p{
+  font-size:14px!important;
+  line-height:1.45!important;
+  min-height:40px;
+}
+.pricingOffersColumn .subscriptionPriceCard .priceAmountInline>span,
+.pricingOffersColumn .subscriptionPriceCard.featured .priceAmountInline>span{
+  font-size:20px!important;
+  line-height:1.08!important;
+  letter-spacing:-.15px!important;
+}
+.pricingOffersColumn .subscriptionPriceCard .priceAmountInline>.pricePeriod,
+.pricingOffersColumn .subscriptionPriceCard.featured .priceAmountInline>.pricePeriod{
+  font-size:12px!important;
+}
+.pricingOffersColumn .subscriptionPriceCard .pricingStorageMeta,
+.pricingOffersColumn .subscriptionPriceCard.featured .pricingStorageMeta{
+  font-size:16px!important;
+  line-height:1.2!important;
+  white-space:nowrap!important;
+}
+.pricingOffersColumn .subscriptionPriceCard .annualOfferBadge{
+  min-height:52px;
+}
+.pricingOffersColumn .subscriptionFeatureList{
+  flex:1;
+  align-content:start;
+}
+.pricingOffersColumn .surMesureHighlights{
+  margin-top:10px!important;
+}
+@media(max-width:1180px){
+  .pricingOffersColumn .subscriptionPriceCard .pricingStorageMeta,
+  .pricingOffersColumn .subscriptionPriceCard.featured .pricingStorageMeta{
+    white-space:normal!important;
+  }
+}
+@media(max-width:760px){
+  .pricingOffersColumn{grid-template-columns:1fr!important}
+  .pricingOffersColumn .subscriptionPriceCard,
+  .pricingOffersColumn .subscriptionPriceCard.featured{
+    height:auto!important;
+  }
+}
