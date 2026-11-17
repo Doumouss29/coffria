@@ -7,9 +7,9 @@ import PublicHeader from '../../components/PublicHeader';
 import PublicFooter from '../../components/PublicFooter';
 import { api } from '../../lib/api';
 
-const fallbackOffers=[{id:'corporate',title:'Pack CORPORATE — 1 To',subtitle:'Offre du moment',description:'1 To de stockage documentaire sécurisé à 60 000 FCFA HT par mois. En paiement annuel, bénéficiez de deux mois offerts, soit 600 000 FCFA HT par an.',ctaLabel:'Choisir le Pack CORPORATE',ctaUrl:'/souscription?plan=corporate',startAt:null,endAt:null}];
+const fallbackOffers=[{id:'corporate',title:'Pack CORPORATE — à partir de 1,5 To',subtitle:'Offre du moment',description:'À partir de 1,5 To de stockage documentaire sécurisé à 80 000 FCFA HT par mois, puis +20 000 FCFA HT par palier supplémentaire de 500 Go.',ctaLabel:'Choisir le Pack CORPORATE',ctaUrl:'/souscription?plan=corporate',startAt:null,endAt:null}];
 function formatDate(value?:string|null){if(!value)return null;return new Intl.DateTimeFormat('fr-FR',{day:'2-digit',month:'long',year:'numeric'}).format(new Date(value))}
-function normalizeOffer(offer:any){const text=`${offer?.title||''} ${offer?.subtitle||''} ${offer?.description||''} ${offer?.ctaLabel||''}`.toUpperCase();if(!text.includes('ESSENTIEL'))return offer;return {...offer,title:'Pack CORPORATE — 1 To',subtitle:'Offre du moment',description:'1 To de stockage documentaire sécurisé à 60 000 FCFA HT par mois. En paiement annuel, bénéficiez de deux mois offerts, soit 600 000 FCFA HT par an.',ctaLabel:'Choisir le Pack CORPORATE',ctaUrl:'/souscription?plan=corporate'};}
+function normalizeOffer(offer:any){const text=`${offer?.title||''} ${offer?.subtitle||''} ${offer?.description||''} ${offer?.ctaLabel||''}`.toUpperCase();if(!text.includes('ESSENTIEL'))return offer;return {...offer,title:'Pack CORPORATE — à partir de 1,5 To',subtitle:'Offre du moment',description:'À partir de 1,5 To de stockage documentaire sécurisé à 80 000 FCFA HT par mois, puis +20 000 FCFA HT par palier supplémentaire de 500 Go.',ctaLabel:'Choisir le Pack CORPORATE',ctaUrl:'/souscription?plan=corporate'};}
 
 export default function OffersPage(){
  const[offers,setOffers]=useState<any[]>([]);useEffect(()=>{api('/marketing/public/offers').then((items:any[])=>setOffers((items||[]).map(normalizeOffer))).catch(()=>{})},[]);const displayOffers=offers.length?offers:fallbackOffers;
