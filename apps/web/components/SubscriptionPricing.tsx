@@ -110,7 +110,13 @@ return <>
             <div className="annualOfferBadge"><Gift size={18}/><strong>{freeMonths(p)} mois offert{freeMonths(p)>1?'s':''}</strong><span>en paiement annuel</span></div>
 
             {s==='sur-mesure'
-              ? <div className="planInheritance">Tout PRO + capacité extensible, support dédié et accompagnement</div>
+              ? <ul className="priceList subscriptionFeatureList surMesureHighlights" style={{listStyle:'none',paddingLeft:0}}>
+                  <li><Check size={17}/>Recherche intelligente IA et indexation documentaire</li>
+                  <li><Check size={17}/>Signature électronique sécurisée et dossier de preuve</li>
+                  <li><Check size={17}/>Gestion avancée des utilisateurs, droits et groupes</li>
+                  <li><Check size={17}/>Capacité de stockage extensible par paliers de 500 Go</li>
+                  <li><Check size={17}/>Support dédié et accompagnement au dimensionnement</li>
+                </ul>
               : <ul className="priceList subscriptionFeatureList" style={{listStyle:'none',paddingLeft:0}}>
                   {features(p).slice(0,7).map((x:string)=><li key={x}><Check size={17}/>{x}</li>)}
                 </ul>}
